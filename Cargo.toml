@@ -2,7 +2,7 @@
 name = "kanuni"
 version = "0.1.0"
 edition = "2021"
-authors = ["V-Lawyer Team <opensource@vlawyer.com>"]
+authors = ["V-Lawyer Team <opensource@v-lawyer.ai>"]
 description = "AI-powered legal intelligence CLI - The Ottoman Edition"
 homepage = "https://github.com/v-lawyer/kanuni-cli"
 repository = "https://github.com/v-lawyer/kanuni-cli"

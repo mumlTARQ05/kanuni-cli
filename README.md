@@ -53,7 +53,7 @@ First, authenticate with your V-Lawyer API key:
 kanuni auth login
 ```
 
-Don't have an API key? Sign up at [vlawyer.com](https://vlawyer.com)
+Don't have an API key? Sign up at [v-lawyer.ai](https://v-lawyer.ai)
 
 ## 📖 Usage
 
@@ -217,13 +217,13 @@ at your option.
 
 - Named after [Suleiman the Magnificent](https://en.wikipedia.org/wiki/Suleiman_the_Magnificent), known as "Kanuni" (The Lawgiver)
 - Built with [Rust](https://www.rust-lang.org/) for performance and safety
-- Powered by [V-Lawyer](https://vlawyer.com) API
+- Powered by [V-Lawyer](https://v-lawyer.ai) API
 
 ## 📞 Support
 
-- **Documentation**: [docs.vlawyer.com](https://docs.vlawyer.com)
+- **Documentation**: [docs.v-lawyer.ai](https://docs.v-lawyer.ai)
 - **Issues**: [GitHub Issues](https://github.com/v-lawyer/kanuni-cli/issues)
-- **Email**: support@vlawyer.com
+- **Email**: support@v-lawyer.ai
 - **Twitter**: [@vlawyer](https://twitter.com/vlawyer)
 
 ## 🚦 Status
