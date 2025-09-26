@@ -28,9 +28,13 @@ pub struct Cli {
 pub enum Commands {
     /// Analyze legal documents for key information
     Analyze {
-        /// Path to the document to analyze
-        #[arg(value_name = "FILE")]
-        file: String,
+        /// Path to the document to analyze (or use --document-id for existing documents)
+        #[arg(value_name = "FILE", conflicts_with = "document_id")]
+        file: Option<String>,
+
+        /// Document ID to analyze (for already uploaded documents)
+        #[arg(long, conflicts_with = "file")]
+        document_id: Option<String>,
 
         /// Output format (json, text, markdown)
         #[arg(short, long, default_value = "text")]
@@ -108,6 +112,12 @@ pub enum Commands {
         #[arg(value_enum)]
         shell: clap_complete::Shell,
     },
+
+    /// Manage documents
+    Document {
+        #[command(subcommand)]
+        action: DocumentAction,
+    },
 }
 
 #[derive(Subcommand)]
@@ -139,11 +149,53 @@ pub enum AuthAction {
     Status,
 }
 
+#[derive(Subcommand)]
+pub enum DocumentAction {
+    /// Upload a document without analysis
+    Upload {
+        /// Path to the document to upload
+        file: String,
+        /// Document category (legal, contract, financial, medical, personal, other)
+        #[arg(long)]  // Removed short flag to avoid conflict with global -c config
+        category: Option<String>,
+        /// Document description
+        #[arg(short, long)]
+        description: Option<String>,
+    },
+    /// List all documents
+    List {
+        /// Maximum number of documents to show
+        #[arg(short, long)]
+        limit: Option<i32>,
+        /// Number of documents to skip
+        #[arg(short, long)]
+        offset: Option<i32>,
+    },
+    /// Show document details
+    Info {
+        /// Document ID (full UUID or first 8 characters)
+        id: String,
+    },
+    /// Delete a document
+    Delete {
+        /// Document ID (full UUID or first 8 characters)
+        id: String,
+    },
+    /// Download a document
+    Download {
+        /// Document ID (full UUID or first 8 characters)
+        id: String,
+        /// Output file path (defaults to original filename)
+        #[arg(short, long)]
+        output: Option<String>,
+    },
+}
+
 impl Cli {
     pub async fn execute(&self) -> Result<()> {
         match &self.command {
-            Commands::Analyze { file, format, extract } => {
-                commands::analyze::execute(file, format, extract).await
+            Commands::Analyze { file, document_id, format, extract } => {
+                commands::analyze::execute(file.as_deref(), document_id.as_deref(), format, extract).await
             },
             Commands::Chat { message, document, session } => {
                 commands::chat::execute(message.as_deref(), document.as_deref(), session.as_deref()).await
@@ -162,6 +214,9 @@ impl Cli {
             },
             Commands::Completions { shell } => {
                 commands::completions::execute(*shell)
+            },
+            Commands::Document { action } => {
+                commands::document::execute(action).await
             },
         }
     }

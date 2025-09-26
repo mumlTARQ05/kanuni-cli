@@ -1,74 +1,153 @@
-use anyhow::Result;
-use reqwest::{Client, Response};
+pub mod analysis;
+pub mod documents;
+
+use anyhow::{Result, Context};
+use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
 use crate::config::Config;
+use crate::auth::AuthManager;
+use std::sync::Arc;
+use std::path::Path;
+use uuid::Uuid;
+
+pub use documents::{DocumentClient, DocumentCategory, DocumentResponse, DocumentListResponse};
+pub use analysis::{AnalysisClient, AnalysisType, AnalysisOptions, AnalysisResultResponse};
 
 pub struct ApiClient {
-    client: Client,
-    config: Config,
+    config: Arc<Config>,
+    auth_manager: Arc<AuthManager>,
+    document_client: DocumentClient,
+    analysis_client: AnalysisClient,
 }
 
 impl ApiClient {
     pub fn new(config: Config) -> Result<Self> {
-        let client = Client::builder()
-            .timeout(std::time::Duration::from_secs(30))
-            .build()?;
+        let auth_manager = AuthManager::new(config.clone())?;
+        let base_url = config.api_endpoint.clone();
 
-        Ok(Self { client, config })
-    }
-
-    pub async fn analyze_document(&self, file_path: &str) -> Result<DocumentAnalysis> {
-        // TODO: Implement actual API call
-        Ok(DocumentAnalysis {
-            document_type: "Contract".to_string(),
-            parties: vec!["Party A".to_string(), "Party B".to_string()],
-            key_dates: vec![],
-            risks: vec![],
-            summary: "Mock analysis result".to_string(),
+        Ok(Self {
+            config: Arc::new(config),
+            auth_manager: Arc::new(auth_manager),
+            document_client: DocumentClient::new(base_url.clone()),
+            analysis_client: AnalysisClient::new(base_url),
         })
     }
 
-    pub async fn chat(&self, message: &str, context: Option<&str>) -> Result<ChatResponse> {
-        // TODO: Implement actual API call with streaming
+    /// Upload and analyze a document in one flow
+    pub async fn upload_and_analyze(
+        &self,
+        file_path: &Path,
+        analysis_type: AnalysisType,
+        category: Option<DocumentCategory>,
+    ) -> Result<AnalysisResultResponse> {
+        // Get auth token
+        let token = self.auth_manager.get_access_token().await
+            .context("Authentication required. Please run 'kanuni auth login' first.")?;
+
+        // Upload document
+        println!("📤 Uploading document...");
+        let document = self.document_client
+            .upload_document(file_path, &token, category, None)
+            .await?;
+
+        // Start analysis
+        println!("🔍 Starting {} analysis...", format!("{:?}", analysis_type).to_lowercase());
+        let analysis_response = self.analysis_client
+            .start_analysis(
+                &token,
+                document.id,
+                analysis_type,
+                AnalysisOptions::default(),
+            )
+            .await?;
+
+        // Wait for completion
+        println!("⏳ Waiting for analysis to complete...");
+        let result = self.analysis_client
+            .wait_for_completion(&token, analysis_response.analysis_id, 300) // 5 minute timeout
+            .await?;
+
+        Ok(result)
+    }
+
+    pub async fn analyze_existing_document(
+        &self,
+        document_id: Uuid,
+        analysis_type: AnalysisType,
+    ) -> Result<AnalysisResultResponse> {
+        let token = self.auth_manager.get_access_token().await?;
+
+        let analysis_response = self.analysis_client
+            .start_analysis(
+                &token,
+                document_id,
+                analysis_type,
+                AnalysisOptions::default(),
+            )
+            .await?;
+
+        let result = self.analysis_client
+            .wait_for_completion(&token, analysis_response.analysis_id, 300)
+            .await?;
+
+        Ok(result)
+    }
+
+    pub async fn chat(&self, _message: &str, _context: Option<&str>) -> Result<ChatResponse> {
+        // TODO: Implement actual chat API call
         Ok(ChatResponse {
-            message: "Mock response".to_string(),
+            message: "Chat functionality coming soon".to_string(),
             session_id: "mock-session".to_string(),
         })
     }
 
-    pub async fn search_cases(&self, query: &str, filters: SearchFilters) -> Result<Vec<CaseResult>> {
-        // TODO: Implement actual API call
+    pub async fn search_cases(&self, _query: &str, _filters: SearchFilters) -> Result<Vec<CaseResult>> {
+        // TODO: Implement actual search API call
         Ok(vec![])
     }
 
-    fn get_headers(&self) -> reqwest::header::HeaderMap {
-        let mut headers = reqwest::header::HeaderMap::new();
+    /// List user documents
+    pub async fn list_documents(&self, limit: Option<i32>, offset: Option<i32>) -> Result<DocumentListResponse> {
+        let token = self.auth_manager.get_access_token().await
+            .context("Authentication required. Please run 'kanuni auth login' first.")?;
 
-        if let Some(api_key) = &self.config.api_key {
-            headers.insert(
-                reqwest::header::AUTHORIZATION,
-                format!("Bearer {}", api_key).parse().unwrap(),
-            );
-        }
+        self.document_client.list_documents(&token, limit, offset).await
+    }
 
-        headers.insert(
-            reqwest::header::USER_AGENT,
-            format!("Kanuni/{}", env!("CARGO_PKG_VERSION")).parse().unwrap(),
-        );
+    /// Get document details
+    pub async fn get_document(&self, document_id: Uuid) -> Result<DocumentResponse> {
+        let token = self.auth_manager.get_access_token().await
+            .context("Authentication required. Please run 'kanuni auth login' first.")?;
 
-        headers
+        self.document_client.get_document(&token, document_id).await
+    }
+
+    /// Delete a document
+    pub async fn delete_document(&self, document_id: Uuid) -> Result<()> {
+        let token = self.auth_manager.get_access_token().await
+            .context("Authentication required. Please run 'kanuni auth login' first.")?;
+
+        self.document_client.delete_document(&token, document_id).await
+    }
+
+    /// Download a document
+    pub async fn download_document(&self, document_id: Uuid, output_path: Option<&Path>) -> Result<std::path::PathBuf> {
+        let token = self.auth_manager.get_access_token().await
+            .context("Authentication required. Please run 'kanuni auth login' first.")?;
+
+        self.document_client.download_document(&token, document_id, output_path).await
+    }
+
+    /// Upload a document without analysis
+    pub async fn upload_document(&self, file_path: &Path, category: Option<DocumentCategory>, description: Option<String>) -> Result<DocumentResponse> {
+        let token = self.auth_manager.get_access_token().await
+            .context("Authentication required. Please run 'kanuni auth login' first.")?;
+
+        self.document_client.upload_document(file_path, &token, category, description).await
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct DocumentAnalysis {
-    pub document_type: String,
-    pub parties: Vec<String>,
-    pub key_dates: Vec<String>,
-    pub risks: Vec<String>,
-    pub summary: String,
-}
-
+// Legacy structs - will be replaced with proper implementations
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ChatResponse {
     pub message: String,

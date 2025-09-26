@@ -1,7 +1,7 @@
 # Kanuni - AI-Powered Legal Intelligence CLI
 
 <div align="center">
-  <img src="https://github.com/v-lawyer/kanuni-cli/assets/logo.png" alt="Kanuni Logo" width="200" />
+  <img src="assets/logo.png" alt="Kanuni Logo" width="200" />
   <h3>The Ottoman Edition</h3>
   <p>Named after Suleiman the Lawgiver (Kanuni Sultan Süleyman)</p>
 

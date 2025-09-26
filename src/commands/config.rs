@@ -11,8 +11,8 @@ pub async fn execute(action: &ConfigAction) -> Result<()> {
             let config = Config::load()?;
             
             println!("\n  {} {}", "API Endpoint:".white().bold(), config.api_endpoint.yellow());
-            println!("  {} {}", "API Key:".white().bold(), 
-                if config.api_key.is_some() { "[CONFIGURED]".green() } else { "[NOT SET]".red() });
+            println!("  {} {}", "User:".white().bold(),
+                config.user_email.as_deref().unwrap_or("[NOT LOGGED IN]").yellow());
             println!("  {} {}", "Default Format:".white().bold(), config.default_format.yellow());
             println!("  {} {}", "Color Output:".white().bold(), 
                 if config.color_output { "enabled".green() } else { "disabled".red() });

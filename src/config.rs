@@ -4,10 +4,11 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     pub api_endpoint: String,
-    pub api_key: Option<String>,
+    pub api_key: Option<String>, // Legacy, will be removed
+    pub user_email: Option<String>,
     pub default_format: String,
     pub color_output: bool,
     pub verbose: bool,
@@ -16,8 +17,9 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            api_endpoint: "https://api.vlawyer.com/v1".to_string(),
+            api_endpoint: "http://localhost:8080/api/v1".to_string(),
             api_key: None,
+            user_email: None,
             default_format: "text".to_string(),
             color_output: true,
             verbose: false,

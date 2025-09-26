@@ -1,7 +1,8 @@
+mod api;
+mod auth;
 mod cli;
 mod commands;
 mod config;
-mod api;
 mod utils;
 
 use anyhow::Result;
