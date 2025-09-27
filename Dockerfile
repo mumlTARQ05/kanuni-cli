@@ -13,13 +13,12 @@ RUN apt-get update && apt-get install -y \
 # Create app directory
 WORKDIR /build
 
-# Copy workspace files
-COPY Cargo.toml Cargo.lock ./
-COPY workspace-deps/Cargo.toml ./workspace-deps/
+# Copy project files
+COPY Cargo.toml ./
 COPY src ./src
 
 # Build the binary
-RUN cargo build --release --locked
+RUN cargo build --release
 
 # Runtime stage
 FROM debian:bookworm-slim
