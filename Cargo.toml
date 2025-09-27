@@ -39,7 +39,7 @@ colored = "2.1"
 indicatif = "0.17"
 dialoguer = "0.11"
 console = "0.15"
-termion = "4.0"
+crossterm = "0.29"
 
 # Configuration
 config = { version = "0.14", features = ["toml"] }
