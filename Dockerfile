@@ -1,8 +1,28 @@
-# Multi-stage build for Kanuni CLI
+# Multi-stage build for Kanuni CLI with cargo-chef for caching
 # Supports both AMD64 and ARM64 architectures
 
-# Build stage
+# Stage 1: Planner
+FROM rust:slim AS planner
+RUN cargo install cargo-chef
+WORKDIR /build
+COPY Cargo.toml ./
+COPY src ./src
+RUN cargo chef prepare --recipe-path recipe.json
+
+# Stage 2: Cacher
+FROM rust:slim AS cacher
+RUN cargo install cargo-chef
+WORKDIR /build
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=planner /build/recipe.json recipe.json
+RUN cargo chef cook --release --recipe-path recipe.json
+
+# Stage 3: Builder
 FROM rust:slim AS builder
+WORKDIR /build
 
 # Install dependencies for building
 RUN apt-get update && apt-get install -y \
@@ -10,14 +30,15 @@ RUN apt-get update && apt-get install -y \
     libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Create app directory
-WORKDIR /build
+# Copy cached dependencies
+COPY --from=cacher /build/target target
+COPY --from=cacher /usr/local/cargo /usr/local/cargo
 
 # Copy project files
 COPY Cargo.toml ./
 COPY src ./src
 
-# Build the binary
+# Build the binary (will use cached dependencies)
 RUN cargo build --release
 
 # Runtime stage

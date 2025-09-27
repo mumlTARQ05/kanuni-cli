@@ -179,7 +179,12 @@ jobs:
       - name: Update package version
         working-directory: ./kanuni-npm
         run: |
-          npm version ${{ needs.create-release.outputs.version }} --no-git-tag-version
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          if [ "$CURRENT_VERSION" != "${{ needs.create-release.outputs.version }}" ]; then
+            npm version ${{ needs.create-release.outputs.version }} --no-git-tag-version
+          else
+            echo "Version already set to ${{ needs.create-release.outputs.version }}"
+          fi
 
       - name: Publish to npm
         working-directory: ./kanuni-npm
@@ -248,7 +253,31 @@ jobs:
 
       - name: Update Formula
         run: |
-          # This would update the formula with new URLs and SHA256
-          echo "Updating Homebrew formula for version ${{ needs.create-release.outputs.version }}"
-          # Script to update formula would go here
+          VERSION="${{ needs.create-release.outputs.version }}"
+
+          # Download SHA256 checksums from the release
+          curl -L -o darwin-x64.sha256 "https://github.com/v-lawyer/kanuni-cli/releases/download/v${VERSION}/kanuni-darwin-x64.tar.gz.sha256"
+          curl -L -o darwin-arm64.sha256 "https://github.com/v-lawyer/kanuni-cli/releases/download/v${VERSION}/kanuni-darwin-arm64.tar.gz.sha256"
+          curl -L -o linux-x64.sha256 "https://github.com/v-lawyer/kanuni-cli/releases/download/v${VERSION}/kanuni-linux-x64.tar.gz.sha256"
+          curl -L -o linux-arm64.sha256 "https://github.com/v-lawyer/kanuni-cli/releases/download/v${VERSION}/kanuni-linux-arm64.tar.gz.sha256"
+
+          # Extract SHA values
+          DARWIN_X64_SHA=$(cut -d' ' -f1 < darwin-x64.sha256)
+          DARWIN_ARM64_SHA=$(cut -d' ' -f1 < darwin-arm64.sha256)
+          LINUX_X64_SHA=$(cut -d' ' -f1 < linux-x64.sha256)
+          LINUX_ARM64_SHA=$(cut -d' ' -f1 < linux-arm64.sha256)
+
+          # Update the formula
+          sed -i "s/version \".*\"/version \"${VERSION}\"/" Formula/kanuni.rb
+          sed -i "s|download/v.*/kanuni-darwin-x64|download/v${VERSION}/kanuni-darwin-x64|g" Formula/kanuni.rb
+          sed -i "s|download/v.*/kanuni-darwin-arm64|download/v${VERSION}/kanuni-darwin-arm64|g" Formula/kanuni.rb
+          sed -i "s|download/v.*/kanuni-linux-x64|download/v${VERSION}/kanuni-linux-x64|g" Formula/kanuni.rb
+          sed -i "s|download/v.*/kanuni-linux-arm64|download/v${VERSION}/kanuni-linux-arm64|g" Formula/kanuni.rb
+
+          # Commit and push
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add Formula/kanuni.rb
+          git commit -m "Update kanuni to ${VERSION}"
+          git push
         continue-on-error: true
