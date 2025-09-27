@@ -155,12 +155,7 @@ impl DeviceAuth {
             };
 
             let url = format!("{}/api/v1/auth/device/token", self.base_url);
-            let response = self
-                .client
-                .post(&url)
-                .json(&request)
-                .send()
-                .await?;
+            let response = self.client.post(&url).json(&request).send().await?;
 
             if response.status().is_success() {
                 return response
