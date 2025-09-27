@@ -1,9 +1,9 @@
-use anyhow::{Result, Context};
-use colored::*;
-use dialoguer::{Select, theme::ColorfulTheme};
+use crate::auth::AuthManager;
 use crate::cli::AuthAction;
 use crate::config::Config;
-use crate::auth::AuthManager;
+use anyhow::{Context, Result};
+use colored::*;
+use dialoguer::{theme::ColorfulTheme, Select};
 
 pub async fn execute(action: &AuthAction) -> Result<()> {
     let config = Config::load()?;
@@ -20,10 +20,7 @@ pub async fn execute(action: &AuthAction) -> Result<()> {
             } else {
                 // Let user choose authentication method
                 let theme = ColorfulTheme::default();
-                let items = vec![
-                    "Browser Authentication (Recommended)",
-                    "API Key",
-                ];
+                let items = vec!["Browser Authentication (Recommended)", "API Key"];
 
                 let selection = Select::with_theme(&theme)
                     .with_prompt("Choose authentication method")
@@ -38,7 +35,9 @@ pub async fn execute(action: &AuthAction) -> Result<()> {
                     }
                     1 => {
                         // Prompt for API key
-                        println!("Enter your API key (or run 'kanuni auth create-key' to generate one):");
+                        println!(
+                            "Enter your API key (or run 'kanuni auth create-key' to generate one):"
+                        );
                         let mut api_key = String::new();
                         std::io::stdin().read_line(&mut api_key)?;
                         let api_key = api_key.trim().to_string();
@@ -60,16 +59,27 @@ pub async fn execute(action: &AuthAction) -> Result<()> {
             let status = auth_manager.status().await?;
 
             if auth_manager.is_authenticated().await {
-                println!("{}  Authentication Status: {}", "🔐".green(), "AUTHENTICATED".green().bold());
+                println!(
+                    "{}  Authentication Status: {}",
+                    "🔐".green(),
+                    "AUTHENTICATED".green().bold()
+                );
                 println!("{}", status);
             } else {
-                println!("{}  Authentication Status: {}", "🔐".red(), "NOT AUTHENTICATED".red().bold());
+                println!(
+                    "{}  Authentication Status: {}",
+                    "🔐".red(),
+                    "NOT AUTHENTICATED".red().bold()
+                );
                 println!("  Run {} to authenticate", "kanuni auth login".cyan());
             }
         }
         AuthAction::CreateKey => {
             if !auth_manager.is_authenticated().await {
-                println!("{}  You must be authenticated to create API keys", "⚠️".yellow());
+                println!(
+                    "{}  You must be authenticated to create API keys",
+                    "⚠️".yellow()
+                );
                 println!("  Run {} first", "kanuni auth login".cyan());
                 return Ok(());
             }
@@ -78,7 +88,10 @@ pub async fn execute(action: &AuthAction) -> Result<()> {
         }
         AuthAction::ListKeys => {
             if !auth_manager.is_authenticated().await {
-                println!("{}  You must be authenticated to list API keys", "⚠️".yellow());
+                println!(
+                    "{}  You must be authenticated to list API keys",
+                    "⚠️".yellow()
+                );
                 println!("  Run {} first", "kanuni auth login".cyan());
                 return Ok(());
             }

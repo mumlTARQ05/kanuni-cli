@@ -1,11 +1,16 @@
-use anyhow::{Result, Context, bail};
+use crate::api::{AnalysisType, ApiClient, DocumentCategory};
+use crate::config::Config;
+use anyhow::{bail, Context, Result};
 use colored::*;
 use std::path::Path;
 use uuid::Uuid;
-use crate::config::Config;
-use crate::api::{ApiClient, AnalysisType, DocumentCategory};
 
-pub async fn execute(file: Option<&str>, document_id: Option<&str>, _format: &str, extract: &[String]) -> Result<()> {
+pub async fn execute(
+    file: Option<&str>,
+    document_id: Option<&str>,
+    _format: &str,
+    extract: &[String],
+) -> Result<()> {
     // Load config and create API client
     let config = Config::load()?;
     let api_client = ApiClient::new(config)?;
@@ -15,10 +20,13 @@ pub async fn execute(file: Option<&str>, document_id: Option<&str>, _format: &st
 
     let result = if let Some(doc_id) = document_id {
         // Analyze existing document
-        println!("{}  {}", "📄".cyan(), format!("Analyzing document ID: {}", doc_id).bold());
+        println!(
+            "{}  {}",
+            "📄".cyan(),
+            format!("Analyzing document ID: {}", doc_id).bold()
+        );
 
-        let uuid = Uuid::parse_str(doc_id)
-            .context("Invalid document ID format")?;
+        let uuid = Uuid::parse_str(doc_id).context("Invalid document ID format")?;
 
         api_client
             .analyze_existing_document(uuid, analysis_type)
@@ -26,7 +34,11 @@ pub async fn execute(file: Option<&str>, document_id: Option<&str>, _format: &st
             .context("Failed to analyze document")?
     } else if let Some(file_path) = file {
         // Upload and analyze new document
-        println!("{}  {}", "📄".cyan(), format!("Analyzing document: {}", file_path).bold());
+        println!(
+            "{}  {}",
+            "📄".cyan(),
+            format!("Analyzing document: {}", file_path).bold()
+        );
 
         // Determine document category from file extension or name
         let category = determine_category(file_path);
@@ -53,11 +65,20 @@ pub async fn execute(file: Option<&str>, document_id: Option<&str>, _format: &st
 
 fn determine_analysis_type(extract: &[String]) -> AnalysisType {
     // Determine analysis type based on what user wants to extract
-    if extract.iter().any(|e| e.contains("legal") || e.contains("risk")) {
+    if extract
+        .iter()
+        .any(|e| e.contains("legal") || e.contains("risk"))
+    {
         AnalysisType::Legal
-    } else if extract.iter().any(|e| e.contains("financial") || e.contains("money")) {
+    } else if extract
+        .iter()
+        .any(|e| e.contains("financial") || e.contains("money"))
+    {
         AnalysisType::Financial
-    } else if extract.iter().any(|e| e.contains("medical") || e.contains("health")) {
+    } else if extract
+        .iter()
+        .any(|e| e.contains("medical") || e.contains("health"))
+    {
         AnalysisType::Medical
     } else if extract.is_empty() {
         AnalysisType::Quick
@@ -137,7 +158,8 @@ fn display_results(result: &crate::api::AnalysisResultResponse) -> Result<()> {
         if !entities.is_empty() {
             println!("\n{}", "👥 Extracted Entities:".blue().bold());
             for entity in entities {
-                println!("  • {}: {} (confidence: {:.0}%)",
+                println!(
+                    "  • {}: {} (confidence: {:.0}%)",
                     entity.entity_type.cyan(),
                     entity.value.yellow(),
                     entity.confidence * 100.0
@@ -150,7 +172,8 @@ fn display_results(result: &crate::api::AnalysisResultResponse) -> Result<()> {
         if !dates.is_empty() {
             println!("\n{}", "📅 Important Dates:".blue().bold());
             for date in dates {
-                println!("  • {} - {} ({})",
+                println!(
+                    "  • {} - {} ({})",
                     date.date.yellow(),
                     date.context,
                     date.date_type.cyan()

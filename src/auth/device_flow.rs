@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 use std::time;
 use tokio::time::sleep;
 
-use crate::api::ApiClient;
 use super::token_store::{AuthType, StoredCredentials, TokenStore};
+use crate::api::ApiClient;
 
 #[derive(Debug, Serialize)]
 pub struct DeviceFlowRequest {
@@ -66,7 +66,11 @@ impl DeviceAuth {
 
         // Display user code and instructions
         println!();
-        println!("{}  Please visit: {}", "🌐".blue(), device_flow.verification_uri.bright_cyan());
+        println!(
+            "{}  Please visit: {}",
+            "🌐".blue(),
+            device_flow.verification_uri.bright_cyan()
+        );
         println!();
         println!("     And enter this code:");
         println!();

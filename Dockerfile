@@ -2,7 +2,7 @@
 # Supports both AMD64 and ARM64 architectures
 
 # Build stage
-FROM rust:1.75-slim AS builder
+FROM rust:slim AS builder
 
 # Install dependencies for building
 RUN apt-get update && apt-get install -y \

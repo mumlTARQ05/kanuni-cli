@@ -1,7 +1,7 @@
-use anyhow::{Result, Context, bail};
+use anyhow::{bail, Context, Result};
 use reqwest::{Client, StatusCode};
 
-use super::models::{LoginRequest, LoginResponse, RefreshRequest, RefreshResponse, ErrorResponse};
+use super::models::{ErrorResponse, LoginRequest, LoginResponse, RefreshRequest, RefreshResponse};
 
 pub struct AuthClient {
     client: Client,
@@ -24,7 +24,8 @@ impl AuthClient {
         tracing::info!("Attempting login to: {}", url);
         tracing::debug!("Login request: {:?}", request);
 
-        let response = self.client
+        let response = self
+            .client
             .post(&url)
             .json(&request)
             .send()
@@ -47,7 +48,10 @@ impl AuthClient {
             }
             status => {
                 // Try to get response body for debugging
-                let body = response.text().await.unwrap_or_else(|_| "No body".to_string());
+                let body = response
+                    .text()
+                    .await
+                    .unwrap_or_else(|_| "No body".to_string());
                 tracing::error!("Login failed with status {}: {}", status, body);
                 bail!("Login failed with status {}: {}", status, body)
             }
@@ -57,7 +61,8 @@ impl AuthClient {
     pub async fn refresh_token(&self, request: RefreshRequest) -> Result<RefreshResponse> {
         let url = format!("{}/auth/refresh", self.base_url);
 
-        let response = self.client
+        let response = self
+            .client
             .post(&url)
             .json(&request)
             .send()
@@ -89,7 +94,8 @@ impl AuthClient {
     pub async fn logout(&self, token: &str) -> Result<()> {
         let url = format!("{}/auth/logout", self.base_url);
 
-        let response = self.client
+        let response = self
+            .client
             .post(&url)
             .header("Authorization", format!("Bearer {}", token))
             .send()

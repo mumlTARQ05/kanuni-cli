@@ -1,26 +1,40 @@
-use anyhow::{Result, bail};
+use anyhow::{bail, Result};
 use chrono_humanize::HumanTime;
 use colored::*;
-use comfy_table::{Table, presets::UTF8_FULL, ContentArrangement, Cell, Color as TableColor};
+use comfy_table::{presets::UTF8_FULL, Cell, Color as TableColor, ContentArrangement, Table};
 use std::path::Path;
 use uuid::Uuid;
 
-use crate::api::{ApiClient, documents::AnalysisStatus};
-use crate::config::Config;
+use crate::api::{documents::AnalysisStatus, ApiClient};
 use crate::cli::DocumentAction;
+use crate::config::Config;
 
 pub async fn execute(action: &DocumentAction) -> Result<()> {
     let config = Config::load()?;
     let api_client = ApiClient::new(config)?;
 
     match action {
-        DocumentAction::Upload { file, category, description } => {
-            upload_document(&api_client, file, category.as_deref(), description.as_deref()).await
-        },
-        DocumentAction::List { limit, offset } => list_documents(&api_client, *limit, *offset).await,
+        DocumentAction::Upload {
+            file,
+            category,
+            description,
+        } => {
+            upload_document(
+                &api_client,
+                file,
+                category.as_deref(),
+                description.as_deref(),
+            )
+            .await
+        }
+        DocumentAction::List { limit, offset } => {
+            list_documents(&api_client, *limit, *offset).await
+        }
         DocumentAction::Info { id } => show_document_info(&api_client, id).await,
         DocumentAction::Delete { id } => delete_document(&api_client, id).await,
-        DocumentAction::Download { id, output } => download_document(&api_client, id, output.as_deref()).await,
+        DocumentAction::Download { id, output } => {
+            download_document(&api_client, id, output.as_deref()).await
+        }
     }
 }
 
@@ -30,10 +44,14 @@ async fn upload_document(
     category: Option<&str>,
     description: Option<&str>,
 ) -> Result<()> {
-    use std::path::Path;
     use crate::api::DocumentCategory;
+    use std::path::Path;
 
-    println!("{} {}", "📤".cyan(), format!("Uploading document: {}", file_path).bold());
+    println!(
+        "{} {}",
+        "📤".cyan(),
+        format!("Uploading document: {}", file_path).bold()
+    );
 
     // Check if file exists
     let path = Path::new(file_path);
@@ -60,37 +78,72 @@ async fn upload_document(
     };
 
     // Upload document
-    let document = api_client.upload_document(path, category_enum, description.map(|s| s.to_string())).await?;
+    let document = api_client
+        .upload_document(path, category_enum, description.map(|s| s.to_string()))
+        .await?;
 
-    println!("\n{} {}", "✅".green(), "Document uploaded successfully!".bold());
-    println!("  {} {}", "ID:".bright_black(), document.id.to_string().yellow());
-    println!("  {} {}", "Filename:".bright_black(), document.filename.white());
+    println!(
+        "\n{} {}",
+        "✅".green(),
+        "Document uploaded successfully!".bold()
+    );
+    println!(
+        "  {} {}",
+        "ID:".bright_black(),
+        document.id.to_string().yellow()
+    );
+    println!(
+        "  {} {}",
+        "Filename:".bright_black(),
+        document.filename.white()
+    );
     println!("  {} {:?}", "Category:".bright_black(), document.category);
-    println!("  {} {}", "Size:".bright_black(), format_file_size(document.size_bytes));
+    println!(
+        "  {} {}",
+        "Size:".bright_black(),
+        format_file_size(document.size_bytes)
+    );
     println!("\n{}", "To analyze this document, run:".bright_black());
-    println!("  {} {}", "➜".cyan(), format!("kanuni analyze --document-id {}", document.id).yellow());
+    println!(
+        "  {} {}",
+        "➜".cyan(),
+        format!("kanuni analyze --document-id {}", document.id).yellow()
+    );
 
     Ok(())
 }
 
-async fn list_documents(api_client: &ApiClient, limit: Option<i32>, offset: Option<i32>) -> Result<()> {
+async fn list_documents(
+    api_client: &ApiClient,
+    limit: Option<i32>,
+    offset: Option<i32>,
+) -> Result<()> {
     println!("{} Fetching your documents...", "📄".cyan());
 
     let response = api_client.list_documents(limit, offset).await?;
 
     if response.documents.is_empty() {
-        println!("\n{}", "No documents found. Upload documents using 'kanuni analyze <file>'".yellow());
+        println!(
+            "\n{}",
+            "No documents found. Upload documents using 'kanuni analyze <file>'".yellow()
+        );
         return Ok(());
     }
 
-    println!("\n{} {}", "📄".cyan(), format!("Your Documents ({} total):", response.total).bold());
+    println!(
+        "\n{} {}",
+        "📄".cyan(),
+        format!("Your Documents ({} total):", response.total).bold()
+    );
 
     // Create a table for document list
     let mut table = Table::new();
     table
         .load_preset(UTF8_FULL)
         .set_content_arrangement(ContentArrangement::Dynamic)
-        .set_header(vec!["ID", "Filename", "Category", "Size", "Uploaded", "Status"]);
+        .set_header(vec![
+            "ID", "Filename", "Category", "Size", "Uploaded", "Status",
+        ]);
 
     for doc in &response.documents {
         // Format document ID (show first 8 chars)
@@ -126,8 +179,15 @@ async fn list_documents(api_client: &ApiClient, limit: Option<i32>, offset: Opti
     println!("{}", table);
 
     if response.documents.len() < response.total as usize {
-        println!("\n{}", format!("Showing {} of {} documents. Use --limit and --offset to see more.",
-            response.documents.len(), response.total).bright_black());
+        println!(
+            "\n{}",
+            format!(
+                "Showing {} of {} documents. Use --limit and --offset to see more.",
+                response.documents.len(),
+                response.total
+            )
+            .bright_black()
+        );
     }
 
     Ok(())
@@ -144,12 +204,28 @@ async fn show_document_info(api_client: &ApiClient, id: &str) -> Result<()> {
     // Analysis details are included in the document response
 
     println!("\n{} {}", "📄".cyan(), "Document Details:".bold());
-    println!("  {} {}", "ID:".bright_black(), document.id.to_string().yellow());
-    println!("  {} {}", "Filename:".bright_black(), document.filename.white());
+    println!(
+        "  {} {}",
+        "ID:".bright_black(),
+        document.id.to_string().yellow()
+    );
+    println!(
+        "  {} {}",
+        "Filename:".bright_black(),
+        document.filename.white()
+    );
     println!("  {} {:?}", "Category:".bright_black(), document.category);
-    println!("  {} {}", "Size:".bright_black(), format_file_size(document.size_bytes));
+    println!(
+        "  {} {}",
+        "Size:".bright_black(),
+        format_file_size(document.size_bytes)
+    );
     println!("  {} {}", "Type:".bright_black(), document.mime_type);
-    println!("  {} {}", "Uploaded:".bright_black(), document.upload_date.format("%Y-%m-%d %H:%M:%S UTC"));
+    println!(
+        "  {} {}",
+        "Uploaded:".bright_black(),
+        document.upload_date.format("%Y-%m-%d %H:%M:%S UTC")
+    );
 
     // Analysis status
     let status_display = match document.analysis_status {
@@ -163,16 +239,30 @@ async fn show_document_info(api_client: &ApiClient, id: &str) -> Result<()> {
     println!("  {}", status_display);
 
     if let Some(analysis_id) = document.analysis_id {
-        println!("  {} {}", "Analysis ID:".bright_black(), analysis_id.to_string().yellow());
+        println!(
+            "  {} {}",
+            "Analysis ID:".bright_black(),
+            analysis_id.to_string().yellow()
+        );
     }
 
     if document.analysis_status == AnalysisStatus::Pending {
-        println!("  {}", "Run 'kanuni analyze' with this document to start analysis".bright_black());
+        println!(
+            "  {}",
+            "Run 'kanuni analyze' with this document to start analysis".bright_black()
+        );
     }
 
     // Download URL
     if document.download_url.is_some() {
-        println!("\n{}", format!("💾 Download available. Use 'kanuni document download {}' to download", id).bright_black());
+        println!(
+            "\n{}",
+            format!(
+                "💾 Download available. Use 'kanuni document download {}' to download",
+                id
+            )
+            .bright_black()
+        );
     }
 
     Ok(())
@@ -184,7 +274,11 @@ async fn delete_document(api_client: &ApiClient, id: &str) -> Result<()> {
     // Get document info first
     let document = api_client.get_document(document_id).await?;
 
-    println!("{} {}", "🗑️".red(), format!("Deleting '{}'...", document.filename).bold());
+    println!(
+        "{} {}",
+        "🗑️".red(),
+        format!("Deleting '{}'...", document.filename).bold()
+    );
 
     // Confirm deletion
     print!("Are you sure you want to delete this document? (y/N): ");
@@ -201,7 +295,11 @@ async fn delete_document(api_client: &ApiClient, id: &str) -> Result<()> {
 
     api_client.delete_document(document_id).await?;
 
-    println!("{} {}", "✅".green(), format!("Document '{}' deleted successfully", document.filename).bold());
+    println!(
+        "{} {}",
+        "✅".green(),
+        format!("Document '{}' deleted successfully", document.filename).bold()
+    );
 
     Ok(())
 }
@@ -211,9 +309,15 @@ async fn download_document(api_client: &ApiClient, id: &str, output: Option<&str
 
     let output_path = output.map(Path::new);
 
-    let downloaded_path = api_client.download_document(document_id, output_path).await?;
+    let downloaded_path = api_client
+        .download_document(document_id, output_path)
+        .await?;
 
-    println!("{} {}", "✅".green(), format!("Document downloaded to: {}", downloaded_path.display()).bold());
+    println!(
+        "{} {}",
+        "✅".green(),
+        format!("Document downloaded to: {}", downloaded_path.display()).bold()
+    );
 
     Ok(())
 }

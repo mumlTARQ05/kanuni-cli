@@ -6,28 +6,28 @@ use std::time::Duration;
 pub async fn execute(path: &str, format: &str, reminder: Option<u32>) -> Result<()> {
     println!("{}  Extracting dates from: {}", "📅".cyan(), path.bold());
     println!("  Output format: {}", format.yellow());
-    
+
     if let Some(r) = reminder {
         println!("  🔔 Will add reminders {} days before deadlines", r);
     }
-    
+
     let pb = ProgressBar::new_spinner();
     pb.set_style(
         ProgressStyle::default_spinner()
             .template("{spinner:.cyan} {msg}")
-            .unwrap()
+            .unwrap(),
     );
     pb.set_message("Scanning documents...");
     pb.enable_steady_tick(Duration::from_millis(100));
-    
+
     // Simulate extraction
     tokio::time::sleep(Duration::from_secs(2)).await;
     pb.set_message("Extracting dates and deadlines...");
     tokio::time::sleep(Duration::from_secs(1)).await;
     pb.finish_with_message("✓ Extraction complete");
-    
+
     println!("\n{} Found 5 important dates:", "📌".green());
-    
+
     // Mock results
     let dates = vec![
         ("2024-12-31", "Contract Renewal Deadline", "High"),
@@ -36,7 +36,7 @@ pub async fn execute(path: &str, format: &str, reminder: Option<u32>) -> Result<
         ("2024-10-15", "Client Review Meeting", "Low"),
         ("2024-09-30", "Quarterly Report Due", "Medium"),
     ];
-    
+
     for (date, desc, priority) in dates {
         let _priority_color = match priority {
             "Critical" => "red",
@@ -44,7 +44,7 @@ pub async fn execute(path: &str, format: &str, reminder: Option<u32>) -> Result<
             "Medium" => "cyan",
             _ => "white",
         };
-        
+
         println!(
             "  • {} - {} [{}]",
             date.white().bold(),
@@ -57,14 +57,17 @@ pub async fn execute(path: &str, format: &str, reminder: Option<u32>) -> Result<
             }
         );
     }
-    
+
     match format {
         "ical" => println!("\n💾 Saved to: deadlines.ics"),
         "csv" => println!("\n💾 Saved to: deadlines.csv"),
         _ => println!("\n💾 Output saved to: deadlines.json"),
     }
-    
-    println!("\n{}", "[Connect to V-Lawyer API for full extraction]".yellow());
-    
+
+    println!(
+        "\n{}",
+        "[Connect to V-Lawyer API for full extraction]".yellow()
+    );
+
     Ok(())
 }

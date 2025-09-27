@@ -1,13 +1,15 @@
 use anyhow::{Context, Result};
 use chrono::Utc;
 use colored::*;
-use comfy_table::{modifiers::UTF8_ROUND_CORNERS, presets::UTF8_FULL, Cell, ContentArrangement, Table};
-use dialoguer::{Confirm, Input, theme::ColorfulTheme};
+use comfy_table::{
+    modifiers::UTF8_ROUND_CORNERS, presets::UTF8_FULL, Cell, ContentArrangement, Table,
+};
+use dialoguer::{theme::ColorfulTheme, Confirm, Input};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::api::ApiClient;
 use super::token_store::{AuthType, StoredCredentials, TokenStore};
+use crate::api::ApiClient;
 
 #[derive(Debug, Serialize)]
 pub struct CreateApiKeyRequest {
@@ -99,23 +101,33 @@ impl ApiKeyManager {
         println!("{}  API Key created successfully!", "✓".green());
         println!();
         println!("  {}: {}", "Name".bright_blue(), response.name);
-        println!("  {}: {}...{}",
+        println!(
+            "  {}: {}...{}",
             "Identifier".bright_blue(),
             response.prefix,
             response.last_4
         );
         if let Some(expires) = response.expires_at {
-            println!("  {}: {}",
+            println!(
+                "  {}: {}",
                 "Expires".bright_blue(),
                 expires.format("%Y-%m-%d %H:%M:%S UTC")
             );
         }
         println!();
-        println!("  {}:", "Your API Key (SAVE THIS NOW - IT WON'T BE SHOWN AGAIN)".bright_red().bold());
+        println!(
+            "  {}:",
+            "Your API Key (SAVE THIS NOW - IT WON'T BE SHOWN AGAIN)"
+                .bright_red()
+                .bold()
+        );
         println!();
         println!("    {}", response.api_key.bright_green());
         println!();
-        println!("  Use this key with the {} header or as:", "X-API-Key".cyan());
+        println!(
+            "  Use this key with the {} header or as:",
+            "X-API-Key".cyan()
+        );
         println!("    kanuni auth login --api-key {}", response.api_key);
         println!();
 
@@ -125,7 +137,13 @@ impl ApiKeyManager {
             .default(true)
             .interact()?
         {
-            self.authenticate_with_key(response.api_key, response.name, response.prefix, response.last_4).await?;
+            self.authenticate_with_key(
+                response.api_key,
+                response.name,
+                response.prefix,
+                response.last_4,
+            )
+            .await?;
         }
 
         Ok(())
@@ -159,10 +177,12 @@ impl ApiKeyManager {
                 prefix,
                 last_4,
             },
-            user_id: user_info.get("id")
+            user_id: user_info
+                .get("id")
                 .and_then(|v| v.as_str())
                 .and_then(|s| Uuid::parse_str(s).ok()),
-            email: user_info.get("email")
+            email: user_info
+                .get("email")
                 .and_then(|v| v.as_str())
                 .map(String::from),
             created_at: Utc::now(),
@@ -206,21 +226,17 @@ impl ApiKeyManager {
 
         for key in keys {
             let key_id = format!("{}...{}", key.prefix, key.last_4);
-            let last_used = key.last_used_at
+            let last_used = key
+                .last_used_at
                 .map(|dt| dt.format("%Y-%m-%d").to_string())
                 .unwrap_or_else(|| "Never".to_string());
-            let expires = key.expires_at
+            let expires = key
+                .expires_at
                 .map(|dt| dt.format("%Y-%m-%d").to_string())
                 .unwrap_or_else(|| "Never".to_string());
             let created = key.created_at.format("%Y-%m-%d").to_string();
 
-            table.add_row(vec![
-                key.name,
-                key_id,
-                last_used,
-                expires,
-                created,
-            ]);
+            table.add_row(vec![key.name, key_id, last_used, expires, created]);
         }
 
         println!("{table}");
@@ -240,7 +256,10 @@ impl ApiKeyManager {
         }
 
         self.client
-            .delete_with_auth(&format!("/api/v1/account/api-keys/{}", key_id), access_token)
+            .delete_with_auth(
+                &format!("/api/v1/account/api-keys/{}", key_id),
+                access_token,
+            )
             .send()
             .await?
             .error_for_status()?;

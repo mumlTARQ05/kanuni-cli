@@ -1,16 +1,16 @@
 pub mod analysis;
 pub mod documents;
 
-use anyhow::{Result, Context};
-use serde::{Deserialize, Serialize};
-use crate::config::Config;
 use crate::auth::AuthManager;
-use std::sync::Arc;
+use crate::config::Config;
+use anyhow::{Context, Result};
+use serde::{Deserialize, Serialize};
 use std::path::Path;
+use std::sync::Arc;
 use uuid::Uuid;
 
-pub use documents::{DocumentClient, DocumentCategory, DocumentResponse, DocumentListResponse};
-pub use analysis::{AnalysisClient, AnalysisType, AnalysisOptions, AnalysisResultResponse};
+pub use analysis::{AnalysisClient, AnalysisOptions, AnalysisResultResponse, AnalysisType};
+pub use documents::{DocumentCategory, DocumentClient, DocumentListResponse, DocumentResponse};
 
 pub struct ApiClient {
     #[allow(dead_code)]
@@ -41,18 +41,26 @@ impl ApiClient {
         category: Option<DocumentCategory>,
     ) -> Result<AnalysisResultResponse> {
         // Get auth token
-        let token = self.auth_manager.get_access_token().await
+        let token = self
+            .auth_manager
+            .get_access_token()
+            .await
             .context("Authentication required. Please run 'kanuni auth login' first.")?;
 
         // Upload document
         println!("📤 Uploading document...");
-        let document = self.document_client
+        let document = self
+            .document_client
             .upload_document(file_path, &token, category, None)
             .await?;
 
         // Start analysis
-        println!("🔍 Starting {} analysis...", format!("{:?}", analysis_type).to_lowercase());
-        let analysis_response = self.analysis_client
+        println!(
+            "🔍 Starting {} analysis...",
+            format!("{:?}", analysis_type).to_lowercase()
+        );
+        let analysis_response = self
+            .analysis_client
             .start_analysis(
                 &token,
                 document.id,
@@ -63,7 +71,8 @@ impl ApiClient {
 
         // Wait for completion
         println!("⏳ Waiting for analysis to complete...");
-        let result = self.analysis_client
+        let result = self
+            .analysis_client
             .wait_for_completion(&token, analysis_response.analysis_id, 300) // 5 minute timeout
             .await?;
 
@@ -77,7 +86,8 @@ impl ApiClient {
     ) -> Result<AnalysisResultResponse> {
         let token = self.auth_manager.get_access_token().await?;
 
-        let analysis_response = self.analysis_client
+        let analysis_response = self
+            .analysis_client
             .start_analysis(
                 &token,
                 document_id,
@@ -86,7 +96,8 @@ impl ApiClient {
             )
             .await?;
 
-        let result = self.analysis_client
+        let result = self
+            .analysis_client
             .wait_for_completion(&token, analysis_response.analysis_id, 300)
             .await?;
 
@@ -103,22 +114,38 @@ impl ApiClient {
     }
 
     #[allow(dead_code)]
-    pub async fn search_cases(&self, _query: &str, _filters: SearchFilters) -> Result<Vec<CaseResult>> {
+    pub async fn search_cases(
+        &self,
+        _query: &str,
+        _filters: SearchFilters,
+    ) -> Result<Vec<CaseResult>> {
         // TODO: Implement actual search API call
         Ok(vec![])
     }
 
     /// List user documents
-    pub async fn list_documents(&self, limit: Option<i32>, offset: Option<i32>) -> Result<DocumentListResponse> {
-        let token = self.auth_manager.get_access_token().await
+    pub async fn list_documents(
+        &self,
+        limit: Option<i32>,
+        offset: Option<i32>,
+    ) -> Result<DocumentListResponse> {
+        let token = self
+            .auth_manager
+            .get_access_token()
+            .await
             .context("Authentication required. Please run 'kanuni auth login' first.")?;
 
-        self.document_client.list_documents(&token, limit, offset).await
+        self.document_client
+            .list_documents(&token, limit, offset)
+            .await
     }
 
     /// Get document details
     pub async fn get_document(&self, document_id: Uuid) -> Result<DocumentResponse> {
-        let token = self.auth_manager.get_access_token().await
+        let token = self
+            .auth_manager
+            .get_access_token()
+            .await
             .context("Authentication required. Please run 'kanuni auth login' first.")?;
 
         self.document_client.get_document(&token, document_id).await
@@ -126,26 +153,50 @@ impl ApiClient {
 
     /// Delete a document
     pub async fn delete_document(&self, document_id: Uuid) -> Result<()> {
-        let token = self.auth_manager.get_access_token().await
+        let token = self
+            .auth_manager
+            .get_access_token()
+            .await
             .context("Authentication required. Please run 'kanuni auth login' first.")?;
 
-        self.document_client.delete_document(&token, document_id).await
+        self.document_client
+            .delete_document(&token, document_id)
+            .await
     }
 
     /// Download a document
-    pub async fn download_document(&self, document_id: Uuid, output_path: Option<&Path>) -> Result<std::path::PathBuf> {
-        let token = self.auth_manager.get_access_token().await
+    pub async fn download_document(
+        &self,
+        document_id: Uuid,
+        output_path: Option<&Path>,
+    ) -> Result<std::path::PathBuf> {
+        let token = self
+            .auth_manager
+            .get_access_token()
+            .await
             .context("Authentication required. Please run 'kanuni auth login' first.")?;
 
-        self.document_client.download_document(&token, document_id, output_path).await
+        self.document_client
+            .download_document(&token, document_id, output_path)
+            .await
     }
 
     /// Upload a document without analysis
-    pub async fn upload_document(&self, file_path: &Path, category: Option<DocumentCategory>, description: Option<String>) -> Result<DocumentResponse> {
-        let token = self.auth_manager.get_access_token().await
+    pub async fn upload_document(
+        &self,
+        file_path: &Path,
+        category: Option<DocumentCategory>,
+        description: Option<String>,
+    ) -> Result<DocumentResponse> {
+        let token = self
+            .auth_manager
+            .get_access_token()
+            .await
             .context("Authentication required. Please run 'kanuni auth login' first.")?;
 
-        self.document_client.upload_document(file_path, &token, category, description).await
+        self.document_client
+            .upload_document(file_path, &token, category, description)
+            .await
     }
 }
 

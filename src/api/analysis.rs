@@ -1,4 +1,4 @@
-use anyhow::{Result, Context, bail};
+use anyhow::{bail, Context, Result};
 use chrono::{DateTime, Utc};
 use indicatif::{ProgressBar, ProgressStyle};
 use reqwest::{Client, StatusCode};
@@ -148,7 +148,8 @@ impl AnalysisClient {
             perform_risk_assessment: options.perform_risk_assessment,
         };
 
-        let response = self.client
+        let response = self
+            .client
             .post(&url)
             .header("Authorization", format!("Bearer {}", token))
             .json(&request)
@@ -157,10 +158,10 @@ impl AnalysisClient {
             .context("Failed to start analysis")?;
 
         match response.status() {
-            StatusCode::OK | StatusCode::CREATED => {
-                response.json::<StartAnalysisResponse>().await
-                    .context("Failed to parse analysis response")
-            }
+            StatusCode::OK | StatusCode::CREATED => response
+                .json::<StartAnalysisResponse>()
+                .await
+                .context("Failed to parse analysis response"),
             StatusCode::UNAUTHORIZED => bail!("Authentication required"),
             StatusCode::FORBIDDEN => bail!("Insufficient permissions for this analysis type"),
             StatusCode::NOT_FOUND => bail!("Document not found"),
@@ -180,7 +181,8 @@ impl AnalysisClient {
     ) -> Result<AnalysisStatusResponse> {
         let url = format!("{}/analysis/{}/status", self.base_url, analysis_id);
 
-        let response = self.client
+        let response = self
+            .client
             .get(&url)
             .header("Authorization", format!("Bearer {}", token))
             .send()
@@ -188,10 +190,10 @@ impl AnalysisClient {
             .context("Failed to get analysis status")?;
 
         match response.status() {
-            StatusCode::OK => {
-                response.json::<AnalysisStatusResponse>().await
-                    .context("Failed to parse status response")
-            }
+            StatusCode::OK => response
+                .json::<AnalysisStatusResponse>()
+                .await
+                .context("Failed to parse status response"),
             StatusCode::NOT_FOUND => bail!("Analysis not found"),
             status => {
                 let body = response.text().await.unwrap_or_default();
@@ -208,7 +210,8 @@ impl AnalysisClient {
     ) -> Result<AnalysisResultResponse> {
         let url = format!("{}/analysis/{}/result", self.base_url, analysis_id);
 
-        let response = self.client
+        let response = self
+            .client
             .get(&url)
             .header("Authorization", format!("Bearer {}", token))
             .send()
@@ -216,10 +219,10 @@ impl AnalysisClient {
             .context("Failed to get analysis result")?;
 
         match response.status() {
-            StatusCode::OK => {
-                response.json::<AnalysisResultResponse>().await
-                    .context("Failed to parse result response")
-            }
+            StatusCode::OK => response
+                .json::<AnalysisResultResponse>()
+                .await
+                .context("Failed to parse result response"),
             StatusCode::NOT_FOUND => bail!("Analysis not found"),
             StatusCode::ACCEPTED => bail!("Analysis still in progress"),
             status => {
@@ -240,7 +243,7 @@ impl AnalysisClient {
         pb.set_style(
             ProgressStyle::default_spinner()
                 .template("{spinner:.cyan} {msg}")
-                .unwrap()
+                .unwrap(),
         );
 
         let start_time = std::time::Instant::now();
@@ -261,7 +264,10 @@ impl AnalysisClient {
                 }
                 AnalysisStatus::Failed => {
                     pb.finish_with_message("❌ Analysis failed");
-                    bail!("Analysis failed: {}", status.error_message.unwrap_or_default());
+                    bail!(
+                        "Analysis failed: {}",
+                        status.error_message.unwrap_or_default()
+                    );
                 }
                 AnalysisStatus::Cancelled => {
                     pb.finish_with_message("⚠️ Analysis cancelled");
@@ -286,14 +292,11 @@ impl AnalysisClient {
 
     /// Cancel an analysis
     #[allow(dead_code)]
-    pub async fn cancel_analysis(
-        &self,
-        token: &str,
-        analysis_id: Uuid,
-    ) -> Result<()> {
+    pub async fn cancel_analysis(&self, token: &str, analysis_id: Uuid) -> Result<()> {
         let url = format!("{}/analysis/{}/cancel", self.base_url, analysis_id);
 
-        let response = self.client
+        let response = self
+            .client
             .delete(&url)
             .header("Authorization", format!("Bearer {}", token))
             .send()

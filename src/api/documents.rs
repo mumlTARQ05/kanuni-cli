@@ -1,4 +1,4 @@
-use anyhow::{Result, Context, bail};
+use anyhow::{bail, Context, Result};
 use chrono::{DateTime, Utc};
 use indicatif::{ProgressBar, ProgressStyle};
 use reqwest::{Client, StatusCode};
@@ -132,10 +132,10 @@ impl DocumentClient {
         description: Option<String>,
     ) -> Result<DocumentResponse> {
         // Read file metadata
-        let metadata = fs::metadata(file_path)
-            .context("Failed to read file metadata")?;
+        let metadata = fs::metadata(file_path).context("Failed to read file metadata")?;
         let file_size = metadata.len() as i64;
-        let filename = file_path.file_name()
+        let filename = file_path
+            .file_name()
             .and_then(|n| n.to_str())
             .ok_or_else(|| anyhow::anyhow!("Invalid filename"))?
             .to_string();
@@ -144,7 +144,10 @@ impl DocumentClient {
         let mime_type = match file_path.extension().and_then(|e| e.to_str()) {
             Some("pdf") => Some("application/pdf".to_string()),
             Some("doc") => Some("application/msword".to_string()),
-            Some("docx") => Some("application/vnd.openxmlformats-officedocument.wordprocessingml.document".to_string()),
+            Some("docx") => Some(
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    .to_string(),
+            ),
             Some("txt") => Some("text/plain".to_string()),
             _ => None,
         };
@@ -163,8 +166,7 @@ impl DocumentClient {
         let upload_response = self.request_upload_url(token, upload_request).await?;
 
         // Step 2: Upload file to presigned URL
-        let file_content = fs::read(file_path)
-            .context("Failed to read file content")?;
+        let file_content = fs::read(file_path).context("Failed to read file content")?;
 
         self.upload_to_presigned_url(
             &upload_response.upload_url,
@@ -172,14 +174,13 @@ impl DocumentClient {
             file_content,
             &filename,
             mime_type.as_deref(),
-        ).await?;
+        )
+        .await?;
 
         // Step 3: Confirm upload
-        let document = self.confirm_upload(
-            token,
-            upload_response.document_id,
-            file_size,
-        ).await?;
+        let document = self
+            .confirm_upload(token, upload_response.document_id, file_size)
+            .await?;
 
         println!("✅ Upload complete: {}", upload_response.document_id);
         Ok(document)
@@ -192,7 +193,8 @@ impl DocumentClient {
     ) -> Result<UploadDocumentResponse> {
         let url = format!("{}/documents", self.base_url);
 
-        let response = self.client
+        let response = self
+            .client
             .post(&url)
             .header("Authorization", format!("Bearer {}", token))
             .json(&request)
@@ -201,10 +203,10 @@ impl DocumentClient {
             .context("Failed to request upload URL")?;
 
         match response.status() {
-            StatusCode::CREATED => {
-                response.json::<UploadDocumentResponse>().await
-                    .context("Failed to parse upload response")
-            }
+            StatusCode::CREATED => response
+                .json::<UploadDocumentResponse>()
+                .await
+                .context("Failed to parse upload response"),
             StatusCode::UNAUTHORIZED => bail!("Authentication required"),
             StatusCode::FORBIDDEN => bail!("Insufficient permissions"),
             StatusCode::PAYLOAD_TOO_LARGE => bail!("File too large"),
@@ -228,7 +230,7 @@ impl DocumentClient {
             ProgressStyle::default_bar()
                 .template("{spinner:.green} [{bar:40.cyan/blue}] {bytes}/{total_bytes} {msg}")
                 .unwrap()
-                .progress_chars("#>-")
+                .progress_chars("#>-"),
         );
         pb.set_message("Uploading...");
 
@@ -275,7 +277,8 @@ impl DocumentClient {
     ) -> Result<DocumentResponse> {
         let url = format!("{}/documents/{}/confirm", self.base_url, document_id);
 
-        let response = self.client
+        let response = self
+            .client
             .post(&url)
             .header("Authorization", format!("Bearer {}", token))
             .json(&ConfirmUploadRequest { size_bytes })
@@ -284,10 +287,10 @@ impl DocumentClient {
             .context("Failed to confirm upload")?;
 
         match response.status() {
-            StatusCode::OK => {
-                response.json::<DocumentResponse>().await
-                    .context("Failed to parse document response")
-            }
+            StatusCode::OK => response
+                .json::<DocumentResponse>()
+                .await
+                .context("Failed to parse document response"),
             StatusCode::NOT_FOUND => bail!("Document not found"),
             status => {
                 let body = response.text().await.unwrap_or_default();
@@ -296,14 +299,11 @@ impl DocumentClient {
         }
     }
 
-    pub async fn get_document(
-        &self,
-        token: &str,
-        document_id: Uuid,
-    ) -> Result<DocumentResponse> {
+    pub async fn get_document(&self, token: &str, document_id: Uuid) -> Result<DocumentResponse> {
         let url = format!("{}/documents/{}", self.base_url, document_id);
 
-        let response = self.client
+        let response = self
+            .client
             .get(&url)
             .header("Authorization", format!("Bearer {}", token))
             .send()
@@ -311,10 +311,10 @@ impl DocumentClient {
             .context("Failed to get document")?;
 
         match response.status() {
-            StatusCode::OK => {
-                response.json::<DocumentResponse>().await
-                    .context("Failed to parse document response")
-            }
+            StatusCode::OK => response
+                .json::<DocumentResponse>()
+                .await
+                .context("Failed to parse document response"),
             StatusCode::NOT_FOUND => bail!("Document not found"),
             status => {
                 let body = response.text().await.unwrap_or_default();
@@ -344,7 +344,8 @@ impl DocumentClient {
             url = format!("{}?{}", url, params.join("&"));
         }
 
-        let response = self.client
+        let response = self
+            .client
             .get(&url)
             .header("Authorization", format!("Bearer {}", token))
             .send()
@@ -352,10 +353,10 @@ impl DocumentClient {
             .context("Failed to list documents")?;
 
         match response.status() {
-            StatusCode::OK => {
-                response.json::<DocumentListResponse>().await
-                    .context("Failed to parse document list response")
-            }
+            StatusCode::OK => response
+                .json::<DocumentListResponse>()
+                .await
+                .context("Failed to parse document list response"),
             StatusCode::UNAUTHORIZED => bail!("Authentication required"),
             status => {
                 let body = response.text().await.unwrap_or_default();
@@ -365,14 +366,11 @@ impl DocumentClient {
     }
 
     /// Delete a document
-    pub async fn delete_document(
-        &self,
-        token: &str,
-        document_id: Uuid,
-    ) -> Result<()> {
+    pub async fn delete_document(&self, token: &str, document_id: Uuid) -> Result<()> {
         let url = format!("{}/documents/{}", self.base_url, document_id);
 
-        let response = self.client
+        let response = self
+            .client
             .delete(&url)
             .header("Authorization", format!("Bearer {}", token))
             .send()
@@ -398,7 +396,8 @@ impl DocumentClient {
     ) -> Result<DocumentDownloadResponse> {
         let url = format!("{}/documents/{}/download", self.base_url, document_id);
 
-        let response = self.client
+        let response = self
+            .client
             .get(&url)
             .header("Authorization", format!("Bearer {}", token))
             .send()
@@ -406,10 +405,10 @@ impl DocumentClient {
             .context("Failed to get download URL")?;
 
         match response.status() {
-            StatusCode::OK => {
-                response.json::<DocumentDownloadResponse>().await
-                    .context("Failed to parse download response")
-            }
+            StatusCode::OK => response
+                .json::<DocumentDownloadResponse>()
+                .await
+                .context("Failed to parse download response"),
             StatusCode::NOT_FOUND => bail!("Document not found"),
             StatusCode::FORBIDDEN => bail!("You don't have permission to download this document"),
             status => {
@@ -437,11 +436,12 @@ impl DocumentClient {
         pb.set_style(
             ProgressStyle::default_spinner()
                 .template("{spinner:.cyan} Downloading {msg}")
-                .unwrap()
+                .unwrap(),
         );
         pb.set_message(document.filename.clone());
 
-        let response = self.client
+        let response = self
+            .client
             .get(&download_response.download_url)
             .send()
             .await
@@ -459,7 +459,10 @@ impl DocumentClient {
         };
 
         // Save to file
-        let bytes = response.bytes().await.context("Failed to read file content")?;
+        let bytes = response
+            .bytes()
+            .await
+            .context("Failed to read file content")?;
         fs::write(&output_file, bytes).context("Failed to write file")?;
 
         pb.finish_with_message(format!("Downloaded to {}", output_file.display()));

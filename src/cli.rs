@@ -162,7 +162,7 @@ pub enum DocumentAction {
         /// Path to the document to upload
         file: String,
         /// Document category (legal, contract, financial, medical, personal, other)
-        #[arg(long)]  // Removed short flag to avoid conflict with global -c config
+        #[arg(long)] // Removed short flag to avoid conflict with global -c config
         category: Option<String>,
         /// Document description
         #[arg(short, long)]
@@ -200,30 +200,46 @@ pub enum DocumentAction {
 impl Cli {
     pub async fn execute(&self) -> Result<()> {
         match &self.command {
-            Commands::Analyze { file, document_id, format, extract } => {
-                commands::analyze::execute(file.as_deref(), document_id.as_deref(), format, extract).await
-            },
-            Commands::Chat { message, document, session } => {
-                commands::chat::execute(message.as_deref(), document.as_deref(), session.as_deref()).await
-            },
-            Commands::Search { query, jurisdiction, date_range, limit } => {
-                commands::search::execute(query, jurisdiction.as_deref(), date_range.as_deref(), *limit).await
-            },
-            Commands::Extract { path, format, reminder } => {
-                commands::extract::execute(path, format, *reminder).await
-            },
-            Commands::Config { action } => {
-                commands::config::execute(action).await
-            },
-            Commands::Auth { action } => {
-                commands::auth::execute(action).await
-            },
-            Commands::Completions { shell } => {
-                commands::completions::execute(*shell)
-            },
-            Commands::Document { action } => {
-                commands::document::execute(action).await
-            },
+            Commands::Analyze {
+                file,
+                document_id,
+                format,
+                extract,
+            } => {
+                commands::analyze::execute(file.as_deref(), document_id.as_deref(), format, extract)
+                    .await
+            }
+            Commands::Chat {
+                message,
+                document,
+                session,
+            } => {
+                commands::chat::execute(message.as_deref(), document.as_deref(), session.as_deref())
+                    .await
+            }
+            Commands::Search {
+                query,
+                jurisdiction,
+                date_range,
+                limit,
+            } => {
+                commands::search::execute(
+                    query,
+                    jurisdiction.as_deref(),
+                    date_range.as_deref(),
+                    *limit,
+                )
+                .await
+            }
+            Commands::Extract {
+                path,
+                format,
+                reminder,
+            } => commands::extract::execute(path, format, *reminder).await,
+            Commands::Config { action } => commands::config::execute(action).await,
+            Commands::Auth { action } => commands::auth::execute(action).await,
+            Commands::Completions { shell } => commands::completions::execute(*shell),
+            Commands::Document { action } => commands::document::execute(action).await,
         }
     }
 }

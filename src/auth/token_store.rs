@@ -78,11 +78,10 @@ impl TokenStore {
             return Ok(None);
         }
 
-        let contents = fs::read_to_string(&auth_file)
-            .context("Failed to read auth file")?;
+        let contents = fs::read_to_string(&auth_file).context("Failed to read auth file")?;
 
-        let credentials: StoredCredentials = serde_json::from_str(&contents)
-            .context("Failed to parse auth file")?;
+        let credentials: StoredCredentials =
+            serde_json::from_str(&contents).context("Failed to parse auth file")?;
 
         Ok(Some(credentials))
     }

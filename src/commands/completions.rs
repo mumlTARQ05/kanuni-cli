@@ -1,7 +1,7 @@
+use crate::cli::Cli;
 use anyhow::Result;
 use clap::CommandFactory;
 use clap_complete::{generate, Shell};
-use crate::cli::Cli;
 use std::io;
 
 pub fn execute(shell: Shell) -> Result<()> {

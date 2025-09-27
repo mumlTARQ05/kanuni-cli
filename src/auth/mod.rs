@@ -9,7 +9,6 @@ use chrono::{Duration, Utc};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-use crate::config::Config;
 use self::{
     api_key::ApiKeyManager,
     client::AuthClient,
@@ -17,6 +16,7 @@ use self::{
     models::{AuthTokens, RefreshRequest, UserInfo},
     token_store::{AuthType, StoredCredentials, TokenStore},
 };
+use crate::config::Config;
 
 pub struct AuthManager {
     client: AuthClient,
@@ -74,12 +74,14 @@ impl AuthManager {
         let config = self.config.read().await;
         let manager = ApiKeyManager::new(config.api_endpoint.clone())?;
 
-        manager.authenticate_with_key(
-            api_key,
-            "CLI Key".to_string(),
-            prefix.to_string(),
-            last_4.to_string(),
-        ).await?;
+        manager
+            .authenticate_with_key(
+                api_key,
+                "CLI Key".to_string(),
+                prefix.to_string(),
+                last_4.to_string(),
+            )
+            .await?;
 
         // Reload credentials
         *self.credentials.write().await = self.store.load_credentials()?;
@@ -134,7 +136,11 @@ impl AuthManager {
                 // API keys don't expire, return as-is
                 Ok(key.clone())
             }
-            AuthType::OAuth { access_token, refresh_token, expires_at } => {
+            AuthType::OAuth {
+                access_token,
+                refresh_token,
+                expires_at,
+            } => {
                 // Check if token is expired or about to expire (5 minutes buffer)
                 if *expires_at > Utc::now() + Duration::minutes(5) {
                     return Ok(access_token.clone());
@@ -143,9 +149,10 @@ impl AuthManager {
                 // Need to refresh the token
                 drop(credentials_guard); // Release read lock
 
-                let response = self.client
+                let response = self
+                    .client
                     .refresh_token(RefreshRequest {
-                        refresh_token: refresh_token.clone()
+                        refresh_token: refresh_token.clone(),
                     })
                     .await
                     .context("Failed to refresh token. Please login again.")?;
@@ -180,14 +187,22 @@ impl AuthManager {
             let mut status = String::from("Authenticated\n");
 
             match &creds.auth_type {
-                AuthType::ApiKey { name, prefix, last_4, .. } => {
+                AuthType::ApiKey {
+                    name,
+                    prefix,
+                    last_4,
+                    ..
+                } => {
                     status.push_str(&format!("  Type: API Key\n"));
                     status.push_str(&format!("  Name: {}\n", name));
                     status.push_str(&format!("  Key: {}...{}\n", prefix, last_4));
                 }
                 AuthType::OAuth { expires_at, .. } => {
                     status.push_str(&format!("  Type: OAuth (Device Flow)\n"));
-                    status.push_str(&format!("  Token expires: {}\n", expires_at.format("%Y-%m-%d %H:%M:%S UTC")));
+                    status.push_str(&format!(
+                        "  Token expires: {}\n",
+                        expires_at.format("%Y-%m-%d %H:%M:%S UTC")
+                    ));
                 }
             }
 
