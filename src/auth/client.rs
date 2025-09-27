@@ -1,6 +1,5 @@
 use anyhow::{Result, Context, bail};
 use reqwest::{Client, StatusCode};
-use serde_json::json;
 
 use super::models::{LoginRequest, LoginResponse, RefreshRequest, RefreshResponse, ErrorResponse};
 
@@ -86,6 +85,7 @@ impl AuthClient {
         }
     }
 
+    #[allow(dead_code)]
     pub async fn logout(&self, token: &str) -> Result<()> {
         let url = format!("{}/auth/logout", self.base_url);
 

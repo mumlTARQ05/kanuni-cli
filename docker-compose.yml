@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  kanuni:
+    image: vlawyer/kanuni:latest
+    container_name: kanuni-cli
+    volumes:
+      # Mount current directory for document access
+      - .:/workspace
+      # Mount config directory for persistent authentication
+      - kanuni-config:/home/kanuni/.config/kanuni
+    environment:
+      # Pass through terminal colors
+      - TERM=${TERM:-xterm-256color}
+      # API endpoint (optional override)
+      - KANUNI_API_URL=${KANUNI_API_URL:-https://api.v-lawyer.ai}
+    stdin_open: true
+    tty: true
+    network_mode: host
+    entrypoint: ["kanuni"]
+    command: ["--help"]
+
+volumes:
+  kanuni-config:
+    name: kanuni-config

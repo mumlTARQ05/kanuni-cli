@@ -1,150 +1,206 @@
+pub mod api_key;
 pub mod client;
+pub mod device_flow;
 pub mod models;
-pub mod storage;
+pub mod token_store;
 
-use anyhow::{Result, Context};
-use chrono::{DateTime, Utc, Duration};
+use anyhow::{Context, Result};
+use chrono::{Duration, Utc};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use crate::config::Config;
 use self::{
+    api_key::ApiKeyManager,
     client::AuthClient,
-    models::{AuthTokens, LoginRequest, LoginResponse, RefreshRequest, UserInfo},
-    storage::TokenStorage,
+    device_flow::DeviceAuth,
+    models::{AuthTokens, RefreshRequest, UserInfo},
+    token_store::{AuthType, StoredCredentials, TokenStore},
 };
 
 pub struct AuthManager {
     client: AuthClient,
-    storage: TokenStorage,
-    tokens: Arc<RwLock<Option<AuthTokens>>>,
+    store: TokenStore,
+    credentials: Arc<RwLock<Option<StoredCredentials>>>,
     config: Arc<RwLock<Config>>,
 }
 
 impl AuthManager {
     pub fn new(config: Config) -> Result<Self> {
         let api_endpoint = config.api_endpoint.clone();
-        let storage = TokenStorage::new()?;
+        let store = TokenStore::new()?;
+
+        // Load existing credentials
+        let credentials = store.load_credentials()?;
 
         Ok(Self {
             client: AuthClient::new(api_endpoint),
-            storage,
-            tokens: Arc::new(RwLock::new(None)),
+            store,
+            credentials: Arc::new(RwLock::new(credentials)),
             config: Arc::new(RwLock::new(config)),
         })
     }
 
-    pub async fn login(&self, email: &str, password: &str, mfa_code: Option<String>) -> Result<()> {
-        // Create login request
-        let request = LoginRequest {
-            email: email.to_string(),
-            password: password.to_string(),
-            mfa_code,
-        };
+    /// Authenticate using device flow (OAuth)
+    pub async fn login_device_flow(&self) -> Result<()> {
+        let config = self.config.read().await;
+        let device_auth = DeviceAuth::new(config.api_endpoint.clone())?;
+        device_auth.authenticate().await?;
 
-        // Send login request
-        let response = self.client.login(request).await
-            .context("Failed to authenticate with server")?;
-
-        // Store tokens
-        self.storage.store_refresh_token(&response.refresh_token)?;
-
-        // Store access token in memory
-        let tokens = AuthTokens {
-            access_token: response.access_token,
-            refresh_token: response.refresh_token,
-            expires_at: Utc::now() + Duration::seconds(response.expires_in),
-            user: response.user,
-        };
-
-        *self.tokens.write().await = Some(tokens.clone());
-
-        // Update config with user email
-        let mut config = self.config.write().await;
-        config.user_email = Some(email.to_string());
-        config.save()?;
+        // Reload credentials
+        *self.credentials.write().await = self.store.load_credentials()?;
 
         Ok(())
     }
 
-    pub async fn logout(&self) -> Result<()> {
-        // Clear tokens from storage
-        self.storage.clear_tokens()?;
+    /// Authenticate using API key
+    pub async fn login_api_key(&self, api_key: String) -> Result<()> {
+        // Extract prefix and last 4 from key
+        let prefix = if api_key.starts_with("kanuni_live_") {
+            "kanuni_live_"
+        } else if api_key.starts_with("kanuni_test_") {
+            "kanuni_test_"
+        } else {
+            return Err(anyhow::anyhow!("Invalid API key format"));
+        };
 
-        // Clear from memory
-        *self.tokens.write().await = None;
+        let key_suffix = &api_key[prefix.len()..];
+        let last_4 = if key_suffix.len() >= 4 {
+            &key_suffix[key_suffix.len() - 4..]
+        } else {
+            return Err(anyhow::anyhow!("Invalid API key format"));
+        };
+
+        let config = self.config.read().await;
+        let manager = ApiKeyManager::new(config.api_endpoint.clone())?;
+
+        manager.authenticate_with_key(
+            api_key,
+            "CLI Key".to_string(),
+            prefix.to_string(),
+            last_4.to_string(),
+        ).await?;
+
+        // Reload credentials
+        *self.credentials.write().await = self.store.load_credentials()?;
+
+        Ok(())
+    }
+
+    /// Create a new API key
+    pub async fn create_api_key(&self) -> Result<()> {
+        let access_token = self.get_access_token().await?;
+        let config = self.config.read().await;
+        let manager = ApiKeyManager::new(config.api_endpoint.clone())?;
+        manager.create_key(&access_token).await?;
+
+        // Reload credentials if user chose to use the new key
+        *self.credentials.write().await = self.store.load_credentials()?;
+
+        Ok(())
+    }
+
+    /// List API keys
+    pub async fn list_api_keys(&self) -> Result<()> {
+        let access_token = self.get_access_token().await?;
+        let config = self.config.read().await;
+        let manager = ApiKeyManager::new(config.api_endpoint.clone())?;
+        manager.list_keys(&access_token).await
+    }
+
+    /// Logout and clear credentials
+    pub async fn logout(&self) -> Result<()> {
+        self.store.clear_credentials()?;
+        *self.credentials.write().await = None;
 
         // Clear user email from config
         let mut config = self.config.write().await;
         config.user_email = None;
         config.save()?;
 
-        // Optional: Call logout endpoint
-        // self.client.logout().await?;
-
         Ok(())
     }
 
+    /// Get access token (handles refresh for OAuth)
     pub async fn get_access_token(&self) -> Result<String> {
-        // Check if we have tokens in memory
-        let mut tokens_guard = self.tokens.write().await;
+        let credentials_guard = self.credentials.read().await;
 
-        if let Some(tokens) = tokens_guard.as_ref() {
-            // Check if token is expired or about to expire (5 minutes buffer)
-            if tokens.expires_at > Utc::now() + Duration::minutes(5) {
-                return Ok(tokens.access_token.clone());
+        let credentials = credentials_guard
+            .as_ref()
+            .context("Not authenticated. Please run 'kanuni auth login'")?;
+
+        match &credentials.auth_type {
+            AuthType::ApiKey { key, .. } => {
+                // API keys don't expire, return as-is
+                Ok(key.clone())
+            }
+            AuthType::OAuth { access_token, refresh_token, expires_at } => {
+                // Check if token is expired or about to expire (5 minutes buffer)
+                if *expires_at > Utc::now() + Duration::minutes(5) {
+                    return Ok(access_token.clone());
+                }
+
+                // Need to refresh the token
+                drop(credentials_guard); // Release read lock
+
+                let response = self.client
+                    .refresh_token(RefreshRequest {
+                        refresh_token: refresh_token.clone()
+                    })
+                    .await
+                    .context("Failed to refresh token. Please login again.")?;
+
+                let new_expires_at = Utc::now() + Duration::seconds(response.expires_in);
+
+                // Update stored tokens
+                self.store.update_oauth_tokens(
+                    response.access_token.clone(),
+                    refresh_token.clone(), // Keep same refresh token
+                    new_expires_at,
+                )?;
+
+                // Update in-memory credentials
+                *self.credentials.write().await = self.store.load_credentials()?;
+
+                Ok(response.access_token)
             }
         }
-
-        // Try to refresh the token
-        let refresh_token = self.storage.get_refresh_token()
-            .context("No refresh token found. Please login first.")?;
-
-        let response = self.client
-            .refresh_token(RefreshRequest { refresh_token: refresh_token.clone() })
-            .await
-            .context("Failed to refresh token. Please login again.")?;
-
-        // Update tokens
-        let tokens = AuthTokens {
-            access_token: response.access_token.clone(),
-            refresh_token: refresh_token, // Keep the same refresh token
-            expires_at: Utc::now() + Duration::seconds(response.expires_in),
-            user: response.user,
-        };
-
-        *tokens_guard = Some(tokens);
-
-        Ok(response.access_token)
     }
 
-    pub async fn get_user_info(&self) -> Result<Option<UserInfo>> {
-        let tokens = self.tokens.read().await;
-        Ok(tokens.as_ref().map(|t| t.user.clone()))
-    }
-
+    /// Check if authenticated
     pub async fn is_authenticated(&self) -> bool {
-        // Check if we have a refresh token stored
-        self.storage.get_refresh_token().is_ok()
+        self.credentials.read().await.is_some()
     }
 
+    /// Get authentication status
     pub async fn status(&self) -> Result<String> {
-        if !self.is_authenticated().await {
-            return Ok("Not authenticated".to_string());
-        }
+        let credentials = self.credentials.read().await;
 
-        let user_info = self.get_user_info().await?;
-        let config = self.config.read().await;
+        if let Some(creds) = credentials.as_ref() {
+            let mut status = String::from("Authenticated\n");
 
-        if let Some(user) = user_info {
-            Ok(format!(
-                "Authenticated as: {}\nSubscription: {}\nAPI Endpoint: {}",
-                user.email,
-                user.subscription_tier.unwrap_or_else(|| "Free".to_string()),
-                config.api_endpoint
-            ))
+            match &creds.auth_type {
+                AuthType::ApiKey { name, prefix, last_4, .. } => {
+                    status.push_str(&format!("  Type: API Key\n"));
+                    status.push_str(&format!("  Name: {}\n", name));
+                    status.push_str(&format!("  Key: {}...{}\n", prefix, last_4));
+                }
+                AuthType::OAuth { expires_at, .. } => {
+                    status.push_str(&format!("  Type: OAuth (Device Flow)\n"));
+                    status.push_str(&format!("  Token expires: {}\n", expires_at.format("%Y-%m-%d %H:%M:%S UTC")));
+                }
+            }
+
+            if let Some(email) = &creds.email {
+                status.push_str(&format!("  Email: {}\n", email));
+            }
+
+            let config = self.config.read().await;
+            status.push_str(&format!("  API Endpoint: {}", config.api_endpoint));
+
+            Ok(status)
         } else {
-            Ok("Authenticated (fetching user info...)".to_string())
+            Ok("Not authenticated".to_string())
         }
     }
 }

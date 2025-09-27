@@ -32,6 +32,7 @@ pub struct UploadDocumentResponse {
     pub document_id: Uuid,
     pub upload_url: String,
     pub upload_fields: serde_json::Value,
+    #[allow(dead_code)]
     pub expires_at: DateTime<Utc>,
 }
 
@@ -49,20 +50,29 @@ pub struct DocumentResponse {
     pub category: DocumentCategory,
     pub upload_date: DateTime<Utc>,
     pub download_url: Option<String>,
+    #[allow(dead_code)]
     pub thumbnail_url: Option<String>,
     pub analysis_status: AnalysisStatus,
     pub analysis_id: Option<Uuid>,
+    #[allow(dead_code)]
     pub metadata: DocumentMetadata,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct DocumentMetadata {
+    #[allow(dead_code)]
     pub title: Option<String>,
+    #[allow(dead_code)]
     pub description: Option<String>,
+    #[allow(dead_code)]
     pub tags: Vec<String>,
+    #[allow(dead_code)]
     pub page_count: Option<i32>,
+    #[allow(dead_code)]
     pub word_count: Option<i32>,
+    #[allow(dead_code)]
     pub language: Option<String>,
+    #[allow(dead_code)]
     pub extracted_text: Option<String>,
 }
 
@@ -85,13 +95,16 @@ pub enum AnalysisStatus {
 pub struct DocumentListResponse {
     pub documents: Vec<DocumentResponse>,
     pub total: i64,
+    #[allow(dead_code)]
     pub limit: i32,
+    #[allow(dead_code)]
     pub offset: i32,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct DocumentDownloadResponse {
     pub download_url: String,
+    #[allow(dead_code)]
     pub expires_at: DateTime<Utc>,
 }
 

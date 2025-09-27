@@ -139,14 +139,20 @@ pub enum ConfigAction {
 pub enum AuthAction {
     /// Login to V-Lawyer
     Login {
-        /// API key (will prompt if not provided)
-        #[arg(long)]
+        /// Use API key for authentication (will use device flow if not provided)
+        #[arg(long = "api-key")]
         api_key: Option<String>,
     },
     /// Logout from V-Lawyer
     Logout,
     /// Check authentication status
     Status,
+    /// Create a new API key
+    #[command(name = "create-key")]
+    CreateKey,
+    /// List all API keys
+    #[command(name = "list-keys")]
+    ListKeys,
 }
 
 #[derive(Subcommand)]

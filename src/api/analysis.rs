@@ -41,21 +41,31 @@ pub struct StartAnalysisRequest {
 #[derive(Debug, Deserialize)]
 pub struct StartAnalysisResponse {
     pub analysis_id: Uuid,
+    #[allow(dead_code)]
     pub document_id: Uuid,
+    #[allow(dead_code)]
     pub analysis_type: AnalysisType,
+    #[allow(dead_code)]
     pub status: AnalysisStatus,
+    #[allow(dead_code)]
     pub created_at: DateTime<Utc>,
+    #[allow(dead_code)]
     pub estimated_completion_time: Option<i32>, // seconds
 }
 
 #[derive(Debug, Deserialize)]
 pub struct AnalysisStatusResponse {
+    #[allow(dead_code)]
     pub id: Uuid,
+    #[allow(dead_code)]
     pub document_id: Uuid,
     pub status: AnalysisStatus,
     pub progress: Option<i32>,
+    #[allow(dead_code)]
     pub created_at: DateTime<Utc>,
+    #[allow(dead_code)]
     pub started_at: Option<DateTime<Utc>>,
+    #[allow(dead_code)]
     pub completed_at: Option<DateTime<Utc>>,
     pub error_message: Option<String>,
 }
@@ -63,16 +73,21 @@ pub struct AnalysisStatusResponse {
 #[derive(Debug, Deserialize)]
 pub struct AnalysisResultResponse {
     pub id: Uuid,
+    #[allow(dead_code)]
     pub document_id: Uuid,
     pub analysis_type: AnalysisType,
+    #[allow(dead_code)]
     pub status: AnalysisStatus,
+    #[allow(dead_code)]
     pub result: Option<serde_json::Value>,
     pub summary: Option<String>,
     pub key_findings: Option<Vec<String>>,
     pub risk_assessment: Option<RiskAssessment>,
     pub entities: Option<Vec<Entity>>,
     pub dates: Option<Vec<ExtractedDate>>,
+    #[allow(dead_code)]
     pub financial_data: Option<serde_json::Value>,
+    #[allow(dead_code)]
     pub completed_at: DateTime<Utc>,
     pub processing_time_ms: Option<i64>,
 }
@@ -270,6 +285,7 @@ impl AnalysisClient {
     }
 
     /// Cancel an analysis
+    #[allow(dead_code)]
     pub async fn cancel_analysis(
         &self,
         token: &str,

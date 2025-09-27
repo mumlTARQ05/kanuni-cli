@@ -59,11 +59,21 @@ url = "2.5"
 comfy-table = "7.1"
 
 # Security
-keyring = { version = "3.0", features = ["apple-native", "windows-native", "linux-native"] }
 rpassword = "7.3"
+sha2 = "0.10"
+
+# System utils
+open = "5.0"
 
 [dev-dependencies]
 mockito = "1.4"
 tempfile = "3.10"
 assert_cmd = "2.0"
 predicates = "3.1"
+
+[profile.release]
+opt-level = 3          # Maximum optimization
+lto = true            # Enable Link Time Optimization
+codegen-units = 1     # Single codegen unit for better optimization
+strip = true          # Strip symbols from binary
+panic = "abort"       # Smaller binary size

@@ -43,6 +43,7 @@ pub struct UserInfo {
 #[derive(Debug, Clone)]
 pub struct AuthTokens {
     pub access_token: String,
+    #[allow(dead_code)]
     pub refresh_token: String,
     pub expires_at: DateTime<Utc>,
     pub user: UserInfo,
@@ -50,6 +51,7 @@ pub struct AuthTokens {
 
 #[derive(Debug, Deserialize)]
 pub struct ErrorResponse {
+    #[allow(dead_code)]
     pub error: String,
     pub message: String,
 }

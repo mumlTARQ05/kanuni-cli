@@ -1,7 +1,6 @@
 use anyhow::{Result, Context};
 use colored::*;
-use dialoguer::{Input, theme::ColorfulTheme};
-use rpassword;
+use dialoguer::{Select, theme::ColorfulTheme};
 use crate::cli::AuthAction;
 use crate::config::Config;
 use crate::auth::AuthManager;
@@ -11,61 +10,45 @@ pub async fn execute(action: &AuthAction) -> Result<()> {
     let auth_manager = AuthManager::new(config)?;
 
     match action {
-        AuthAction::Login { api_key: _ } => {
-            // We're now using email/password auth instead of API keys
-            let theme = ColorfulTheme::default();
+        AuthAction::Login { api_key } => {
+            if let Some(key) = api_key {
+                // Direct API key authentication
+                println!("{}  Authenticating with API key...", "🔑".cyan());
+                auth_manager.login_api_key(key.clone()).await?;
+                println!("{}  Successfully authenticated!", "✓".green());
+                println!("  Welcome to Kanuni - The Legal Intelligence CLI");
+            } else {
+                // Let user choose authentication method
+                let theme = ColorfulTheme::default();
+                let items = vec![
+                    "Browser Authentication (Recommended)",
+                    "API Key",
+                ];
 
-            // Prompt for email
-            let email: String = Input::with_theme(&theme)
-                .with_prompt("Email")
-                .validate_with(|input: &String| -> Result<(), &str> {
-                    if input.contains('@') && input.contains('.') {
-                        Ok(())
-                    } else {
-                        Err("Please enter a valid email address")
+                let selection = Select::with_theme(&theme)
+                    .with_prompt("Choose authentication method")
+                    .items(&items)
+                    .default(0)
+                    .interact()?;
+
+                match selection {
+                    0 => {
+                        // Device flow authentication
+                        auth_manager.login_device_flow().await?;
                     }
-                })
-                .interact_text()?;
+                    1 => {
+                        // Prompt for API key
+                        println!("Enter your API key (or run 'kanuni auth create-key' to generate one):");
+                        let mut api_key = String::new();
+                        std::io::stdin().read_line(&mut api_key)?;
+                        let api_key = api_key.trim().to_string();
 
-            // Prompt for password (hidden input)
-            print!("Password: ");
-            use std::io::{self, Write};
-            io::stdout().flush().unwrap();
-            let password = rpassword::read_password()
-                .context("Failed to read password")?;
-
-            // Initial login attempt
-            println!("{}  Authenticating...", "🔐".cyan());
-            match auth_manager.login(&email, &password, None).await {
-                Ok(_) => {
-                    println!("{}  Successfully authenticated!", "✓".green());
-                    println!("  Welcome to Kanuni - The Legal Intelligence CLI");
-                }
-                Err(e) => {
-                    let error_msg = e.to_string();
-                    if error_msg.contains("MFA") || error_msg.contains("forbidden") {
-                        // MFA is required
-                        println!("{}  MFA Required", "🔑".yellow());
-                        let mfa_code: String = Input::with_theme(&theme)
-                            .with_prompt("Enter MFA code")
-                            .validate_with(|input: &String| -> Result<(), &str> {
-                                if input.len() == 6 && input.chars().all(|c| c.is_numeric()) {
-                                    Ok(())
-                                } else {
-                                    Err("MFA code must be 6 digits")
-                                }
-                            })
-                            .interact_text()?;
-
-                        // Retry with MFA
-                        auth_manager.login(&email, &password, Some(mfa_code)).await
-                            .context("Authentication failed")?;
-
-                        println!("{}  Successfully authenticated with MFA!", "✓".green());
+                        println!("{}  Authenticating with API key...", "🔑".cyan());
+                        auth_manager.login_api_key(api_key).await?;
+                        println!("{}  Successfully authenticated!", "✓".green());
                         println!("  Welcome to Kanuni - The Legal Intelligence CLI");
-                    } else {
-                        return Err(e);
                     }
+                    _ => unreachable!(),
                 }
             }
         }
@@ -83,6 +66,24 @@ pub async fn execute(action: &AuthAction) -> Result<()> {
                 println!("{}  Authentication Status: {}", "🔐".red(), "NOT AUTHENTICATED".red().bold());
                 println!("  Run {} to authenticate", "kanuni auth login".cyan());
             }
+        }
+        AuthAction::CreateKey => {
+            if !auth_manager.is_authenticated().await {
+                println!("{}  You must be authenticated to create API keys", "⚠️".yellow());
+                println!("  Run {} first", "kanuni auth login".cyan());
+                return Ok(());
+            }
+
+            auth_manager.create_api_key().await?;
+        }
+        AuthAction::ListKeys => {
+            if !auth_manager.is_authenticated().await {
+                println!("{}  You must be authenticated to list API keys", "⚠️".yellow());
+                println!("  Run {} first", "kanuni auth login".cyan());
+                return Ok(());
+            }
+
+            auth_manager.list_api_keys().await?;
         }
     }
 

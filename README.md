@@ -23,18 +23,51 @@
 
 ## 📦 Installation
 
-### Via Cargo (Recommended)
+### Quick Install (Recommended)
 
+#### macOS/Linux
+```bash
+curl -fsSL https://get.kanuni.dev | sh
+```
+
+Or if you prefer wget:
+```bash
+wget -qO- https://get.kanuni.dev | sh
+```
+
+### Package Managers
+
+#### Homebrew (macOS/Linux)
+```bash
+brew install v-lawyer/tap/kanuni
+```
+
+#### npm (Node.js)
+```bash
+npm install -g @v-lawyer/kanuni
+```
+
+#### Cargo (Rust)
 ```bash
 cargo install kanuni
 ```
 
-### Via Homebrew (macOS/Linux)
-
+#### Docker
 ```bash
-brew tap v-lawyer/tap
-brew install kanuni
+docker run -it vlawyer/kanuni --help
+
+# Or use docker-compose for persistent config
+docker-compose run kanuni login
+docker-compose run kanuni chat "Your legal question"
 ```
+
+### Platform-Specific Binaries
+
+Download pre-compiled binaries from [GitHub Releases](https://github.com/v-lawyer/kanuni-cli/releases):
+
+- **macOS**: Intel (`kanuni-darwin-x64`) or Apple Silicon (`kanuni-darwin-arm64`)
+- **Linux**: x64 (`kanuni-linux-x64`) or ARM64 (`kanuni-linux-arm64`)
+- **Windows**: x64 (`kanuni-windows-x64.exe`)
 
 ### From Source
 
@@ -43,6 +76,12 @@ git clone https://github.com/v-lawyer/kanuni-cli.git
 cd kanuni-cli
 cargo build --release
 sudo mv target/release/kanuni /usr/local/bin/
+```
+
+### Verify Installation
+
+```bash
+kanuni --version
 ```
 
 ## 🔧 Configuration

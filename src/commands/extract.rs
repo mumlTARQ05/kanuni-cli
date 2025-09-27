@@ -38,7 +38,7 @@ pub async fn execute(path: &str, format: &str, reminder: Option<u32>) -> Result<
     ];
     
     for (date, desc, priority) in dates {
-        let priority_color = match priority {
+        let _priority_color = match priority {
             "Critical" => "red",
             "High" => "yellow",
             "Medium" => "cyan",

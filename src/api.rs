@@ -2,7 +2,6 @@ pub mod analysis;
 pub mod documents;
 
 use anyhow::{Result, Context};
-use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
 use crate::config::Config;
 use crate::auth::AuthManager;
@@ -14,6 +13,7 @@ pub use documents::{DocumentClient, DocumentCategory, DocumentResponse, Document
 pub use analysis::{AnalysisClient, AnalysisType, AnalysisOptions, AnalysisResultResponse};
 
 pub struct ApiClient {
+    #[allow(dead_code)]
     config: Arc<Config>,
     auth_manager: Arc<AuthManager>,
     document_client: DocumentClient,
@@ -93,6 +93,7 @@ impl ApiClient {
         Ok(result)
     }
 
+    #[allow(dead_code)]
     pub async fn chat(&self, _message: &str, _context: Option<&str>) -> Result<ChatResponse> {
         // TODO: Implement actual chat API call
         Ok(ChatResponse {
@@ -101,6 +102,7 @@ impl ApiClient {
         })
     }
 
+    #[allow(dead_code)]
     pub async fn search_cases(&self, _query: &str, _filters: SearchFilters) -> Result<Vec<CaseResult>> {
         // TODO: Implement actual search API call
         Ok(vec![])
