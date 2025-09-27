@@ -40,8 +40,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "${{ github.ref }}" \
-            --title "Release v${{ steps.get_version.outputs.version }}" \
+          TAG_NAME="${GITHUB_REF#refs/tags/}"
+          gh release create "${TAG_NAME}" \
+            --title "Release ${TAG_NAME}" \
             --notes "## Installation
 
           ### Install via npm
@@ -59,8 +60,6 @@ jobs:
 
           ## What's New
           See [CHANGELOG.md](https://github.com/v-lawyer/kanuni-cli/blob/main/CHANGELOG.md) for details."
-
-          echo "upload_url=$(gh release view "${{ github.ref }}" --json uploadUrl -q .uploadUrl)" >> $GITHUB_OUTPUT
 
   build-release:
     name: Build Release
@@ -141,10 +140,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          TAG_NAME="${GITHUB_REF#refs/tags/}"
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            gh release upload "${{ github.ref }}" "${{ matrix.name }}.zip" "${{ matrix.name }}.zip.sha256"
+            gh release upload "${TAG_NAME}" "${{ matrix.name }}.zip" "${{ matrix.name }}.zip.sha256"
           else
-            gh release upload "${{ github.ref }}" "${{ matrix.name }}.tar.gz" "${{ matrix.name }}.tar.gz.sha256"
+            gh release upload "${TAG_NAME}" "${{ matrix.name }}.tar.gz" "${{ matrix.name }}.tar.gz.sha256"
           fi
 
   publish-crate:
