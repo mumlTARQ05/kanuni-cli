@@ -9,7 +9,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::token_store::{AuthType, StoredCredentials, TokenStore};
-use crate::api::ApiClient;
+use crate::config::Config;
+use reqwest::{Client, StatusCode};
 
 #[derive(Debug, Serialize)]
 pub struct CreateApiKeyRequest {
@@ -43,14 +44,20 @@ pub struct ApiKeyInfo {
 }
 
 pub struct ApiKeyManager {
-    client: ApiClient,
+    client: Client,
+    base_url: String,
     store: TokenStore,
 }
 
 impl ApiKeyManager {
-    pub fn new(api_endpoint: String) -> Result<Self> {
+    pub fn new(config: Config) -> Result<Self> {
+        let client = Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .build()?;
+
         Ok(Self {
-            client: ApiClient::new(api_endpoint),
+            client,
+            base_url: config.api_endpoint.clone(),
             store: TokenStore::new()?,
         })
     }
@@ -87,9 +94,11 @@ impl ApiKeyManager {
             expires_in_days,
         };
 
+        let url = format!("{}/api/v1/account/api-keys", self.base_url);
         let response = self
             .client
-            .post_with_auth("/api/v1/account/api-keys", access_token)
+            .post(&url)
+            .header("Authorization", format!("Bearer {}", access_token))
             .json(&request)
             .send()
             .await?
@@ -157,9 +166,11 @@ impl ApiKeyManager {
         last_4: String,
     ) -> Result<()> {
         // Test the API key by making a request
+        let url = format!("{}/api/v1/auth/profile", self.base_url);
         let response = self
             .client
-            .get_with_api_key("/api/v1/auth/profile", &api_key)
+            .get(&url)
+            .header("X-API-Key", &api_key)
             .send()
             .await?;
 
@@ -197,9 +208,11 @@ impl ApiKeyManager {
     }
 
     pub async fn list_keys(&self, access_token: &str) -> Result<()> {
+        let url = format!("{}/api/v1/account/api-keys", self.base_url);
         let keys = self
             .client
-            .get_with_auth("/api/v1/account/api-keys", access_token)
+            .get(&url)
+            .header("Authorization", format!("Bearer {}", access_token))
             .send()
             .await?
             .error_for_status()?
@@ -255,11 +268,10 @@ impl ApiKeyManager {
             return Ok(());
         }
 
+        let url = format!("{}/api/v1/account/api-keys/{}", self.base_url, key_id);
         self.client
-            .delete_with_auth(
-                &format!("/api/v1/account/api-keys/{}", key_id),
-                access_token,
-            )
+            .delete(&url)
+            .header("Authorization", format!("Bearer {}", access_token))
             .send()
             .await?
             .error_for_status()?;

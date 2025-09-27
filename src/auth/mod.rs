@@ -44,7 +44,7 @@ impl AuthManager {
     /// Authenticate using device flow (OAuth)
     pub async fn login_device_flow(&self) -> Result<()> {
         let config = self.config.read().await;
-        let device_auth = DeviceAuth::new(config.api_endpoint.clone())?;
+        let device_auth = DeviceAuth::new(config.clone())?;
         device_auth.authenticate().await?;
 
         // Reload credentials
@@ -72,11 +72,11 @@ impl AuthManager {
         };
 
         let config = self.config.read().await;
-        let manager = ApiKeyManager::new(config.api_endpoint.clone())?;
+        let manager = ApiKeyManager::new(config.clone())?;
 
         manager
             .authenticate_with_key(
-                api_key,
+                api_key.clone(),
                 "CLI Key".to_string(),
                 prefix.to_string(),
                 last_4.to_string(),
@@ -93,7 +93,7 @@ impl AuthManager {
     pub async fn create_api_key(&self) -> Result<()> {
         let access_token = self.get_access_token().await?;
         let config = self.config.read().await;
-        let manager = ApiKeyManager::new(config.api_endpoint.clone())?;
+        let manager = ApiKeyManager::new(config.clone())?;
         manager.create_key(&access_token).await?;
 
         // Reload credentials if user chose to use the new key
@@ -106,7 +106,7 @@ impl AuthManager {
     pub async fn list_api_keys(&self) -> Result<()> {
         let access_token = self.get_access_token().await?;
         let config = self.config.read().await;
-        let manager = ApiKeyManager::new(config.api_endpoint.clone())?;
+        let manager = ApiKeyManager::new(config.clone())?;
         manager.list_keys(&access_token).await
     }
 
@@ -146,13 +146,14 @@ impl AuthManager {
                     return Ok(access_token.clone());
                 }
 
-                // Need to refresh the token
+                // Need to refresh the token - clone what we need before dropping guard
+                let refresh_token_clone = refresh_token.clone();
                 drop(credentials_guard); // Release read lock
 
                 let response = self
                     .client
                     .refresh_token(RefreshRequest {
-                        refresh_token: refresh_token.clone(),
+                        refresh_token: refresh_token_clone.clone(),
                     })
                     .await
                     .context("Failed to refresh token. Please login again.")?;
@@ -162,7 +163,7 @@ impl AuthManager {
                 // Update stored tokens
                 self.store.update_oauth_tokens(
                     response.access_token.clone(),
-                    refresh_token.clone(), // Keep same refresh token
+                    refresh_token_clone, // Use cloned refresh token
                     new_expires_at,
                 )?;
 

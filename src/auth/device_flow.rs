@@ -6,7 +6,8 @@ use std::time;
 use tokio::time::sleep;
 
 use super::token_store::{AuthType, StoredCredentials, TokenStore};
-use crate::api::ApiClient;
+use crate::config::Config;
+use reqwest::Client;
 
 #[derive(Debug, Serialize)]
 pub struct DeviceFlowRequest {
@@ -46,14 +47,20 @@ pub struct DeviceTokenError {
 }
 
 pub struct DeviceAuth {
-    client: ApiClient,
+    client: Client,
+    base_url: String,
     store: TokenStore,
 }
 
 impl DeviceAuth {
-    pub fn new(api_endpoint: String) -> Result<Self> {
+    pub fn new(config: Config) -> Result<Self> {
+        let client = Client::builder()
+            .timeout(time::Duration::from_secs(30))
+            .build()?;
+
         Ok(Self {
-            client: ApiClient::new(api_endpoint),
+            client,
+            base_url: config.api_endpoint.clone(),
             store: TokenStore::new()?,
         })
     }
@@ -117,9 +124,10 @@ impl DeviceAuth {
             scope: "full_access".to_string(),
         };
 
+        let url = format!("{}/api/v1/auth/device/code", self.base_url);
         let response = self
             .client
-            .post("/api/v1/auth/device/code")
+            .post(&url)
             .json(&request)
             .send()
             .await?
@@ -146,9 +154,10 @@ impl DeviceAuth {
                 client_id: "kanuni-cli".to_string(),
             };
 
+            let url = format!("{}/api/v1/auth/device/token", self.base_url);
             let response = self
                 .client
-                .post("/api/v1/auth/device/token")
+                .post(&url)
                 .json(&request)
                 .send()
                 .await?;
