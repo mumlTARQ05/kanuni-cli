@@ -5,7 +5,7 @@ use comfy_table::{Table, presets::UTF8_FULL, ContentArrangement, Cell, Color as 
 use std::path::Path;
 use uuid::Uuid;
 
-use crate::api::ApiClient;
+use crate::api::{ApiClient, documents::AnalysisStatus};
 use crate::config::Config;
 use crate::cli::DocumentAction;
 
@@ -65,12 +65,8 @@ async fn upload_document(
     println!("\n{} {}", "✅".green(), "Document uploaded successfully!".bold());
     println!("  {} {}", "ID:".bright_black(), document.id.to_string().yellow());
     println!("  {} {}", "Filename:".bright_black(), document.filename.white());
-    if let Some(cat) = document.category {
-        println!("  {} {:?}", "Category:".bright_black(), cat);
-    }
-    if let Some(size) = document.size_bytes {
-        println!("  {} {}", "Size:".bright_black(), format_file_size(size));
-    }
+    println!("  {} {:?}", "Category:".bright_black(), document.category);
+    println!("  {} {}", "Size:".bright_black(), format_file_size(document.size_bytes));
     println!("\n{}", "To analyze this document, run:".bright_black());
     println!("  {} {}", "➜".cyan(), format!("kanuni analyze --document-id {}", document.id).yellow());
 
@@ -101,24 +97,21 @@ async fn list_documents(api_client: &ApiClient, limit: Option<i32>, offset: Opti
         let short_id = doc.id.to_string()[..8].to_string();
 
         // Format file size
-        let size = format_file_size(doc.size_bytes.unwrap_or(0));
+        let size = format_file_size(doc.size_bytes);
 
         // Format upload time as human-readable
-        let uploaded = HumanTime::from(doc.created_at).to_string();
+        let uploaded = HumanTime::from(doc.upload_date).to_string();
 
         // Format analysis status
-        let status = match doc.analysis_status.as_deref() {
-            Some("completed") => "✅".to_string(),
-            Some("processing") | Some("analyzing") => "⏳".to_string(),
-            Some("failed") => "❌".to_string(),
-            Some("pending") => "🔄".to_string(),
-            _ => "-".to_string(),
+        let status = match doc.analysis_status {
+            AnalysisStatus::Completed => "✅".to_string(),
+            AnalysisStatus::Processing | AnalysisStatus::Analyzing => "⏳".to_string(),
+            AnalysisStatus::Failed => "❌".to_string(),
+            AnalysisStatus::Pending => "🔄".to_string(),
         };
 
         // Format category
-        let category = doc.category.as_ref()
-            .map(|c| format!("{:?}", c))
-            .unwrap_or_else(|| "Other".to_string());
+        let category = format!("{:?}", doc.category);
 
         table.add_row(vec![
             Cell::new(&short_id).fg(TableColor::Yellow),
@@ -153,44 +146,27 @@ async fn show_document_info(api_client: &ApiClient, id: &str) -> Result<()> {
     println!("\n{} {}", "📄".cyan(), "Document Details:".bold());
     println!("  {} {}", "ID:".bright_black(), document.id.to_string().yellow());
     println!("  {} {}", "Filename:".bright_black(), document.filename.white());
-
-    if let Some(category) = document.category {
-        println!("  {} {:?}", "Category:".bright_black(), category);
-    }
-
-    if let Some(size) = document.size_bytes {
-        println!("  {} {}", "Size:".bright_black(), format_file_size(size));
-    }
-
-    if let Some(mime) = document.mime_type {
-        println!("  {} {}", "Type:".bright_black(), mime);
-    }
-
-    println!("  {} {}", "Uploaded:".bright_black(), document.created_at.format("%Y-%m-%d %H:%M:%S UTC"));
+    println!("  {} {:?}", "Category:".bright_black(), document.category);
+    println!("  {} {}", "Size:".bright_black(), format_file_size(document.size_bytes));
+    println!("  {} {}", "Type:".bright_black(), document.mime_type);
+    println!("  {} {}", "Uploaded:".bright_black(), document.upload_date.format("%Y-%m-%d %H:%M:%S UTC"));
 
     // Analysis status
-    if let Some(status) = document.analysis_status {
-        let status_display = match status.as_str() {
-            "completed" => "Completed ✅".green(),
-            "processing" | "analyzing" => "Processing ⏳".yellow(),
-            "failed" => "Failed ❌".red(),
-            "pending" => "Pending 🔄".blue(),
-            _ => status.white(),
-        };
+    let status_display = match document.analysis_status {
+        AnalysisStatus::Completed => "Completed ✅".green(),
+        AnalysisStatus::Processing | AnalysisStatus::Analyzing => "Processing ⏳".yellow(),
+        AnalysisStatus::Failed => "Failed ❌".red(),
+        AnalysisStatus::Pending => "Pending 🔄".blue(),
+    };
 
-        println!("\n{} {}", "📊".cyan(), "Analysis Status:".bold());
-        println!("  {}", status_display);
+    println!("\n{} {}", "📊".cyan(), "Analysis Status:".bold());
+    println!("  {}", status_display);
 
-        if let Some(analysis_id) = document.analysis_id {
-            println!("  {} {}", "Analysis ID:".bright_black(), analysis_id.to_string().yellow());
-        }
+    if let Some(analysis_id) = document.analysis_id {
+        println!("  {} {}", "Analysis ID:".bright_black(), analysis_id.to_string().yellow());
+    }
 
-        if let Some(analyzed_at) = document.analyzed_at {
-            println!("  {} {}", "Analyzed:".bright_black(), analyzed_at.format("%Y-%m-%d %H:%M:%S UTC"));
-        }
-    } else {
-        println!("\n{} {}", "📊".cyan(), "Analysis Status:".bold());
-        println!("  {}", "Not analyzed".bright_black());
+    if document.analysis_status == AnalysisStatus::Pending {
         println!("  {}", "Run 'kanuni analyze' with this document to start analysis".bright_black());
     }
 

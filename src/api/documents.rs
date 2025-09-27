@@ -1,7 +1,7 @@
 use anyhow::{Result, Context, bail};
 use chrono::{DateTime, Utc};
 use indicatif::{ProgressBar, ProgressStyle};
-use reqwest::{Client, StatusCode, multipart};
+use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -44,15 +44,41 @@ pub struct ConfirmUploadRequest {
 pub struct DocumentResponse {
     pub id: Uuid,
     pub filename: String,
-    pub category: Option<DocumentCategory>,
-    pub size_bytes: Option<i64>,
-    pub mime_type: Option<String>,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    pub size_bytes: i64,
+    pub mime_type: String,
+    pub category: DocumentCategory,
+    pub upload_date: DateTime<Utc>,
     pub download_url: Option<String>,
-    pub analysis_status: Option<String>,
+    pub thumbnail_url: Option<String>,
+    pub analysis_status: AnalysisStatus,
     pub analysis_id: Option<Uuid>,
-    pub analyzed_at: Option<DateTime<Utc>>,
+    pub metadata: DocumentMetadata,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DocumentMetadata {
+    pub title: Option<String>,
+    pub description: Option<String>,
+    pub tags: Vec<String>,
+    pub page_count: Option<i32>,
+    pub word_count: Option<i32>,
+    pub language: Option<String>,
+    pub extracted_text: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum AnalysisStatus {
+    #[serde(rename = "pending")]
+    Pending,
+    #[serde(rename = "processing")]
+    Processing,
+    #[serde(rename = "analyzing")]
+    Analyzing,
+    #[serde(rename = "completed")]
+    Completed,
+    #[serde(rename = "failed")]
+    Failed,
 }
 
 #[derive(Debug, Deserialize)]
@@ -181,8 +207,8 @@ impl DocumentClient {
         upload_url: &str,
         upload_fields: &serde_json::Value,
         file_content: Vec<u8>,
-        filename: &str,
-        mime_type: Option<&str>,
+        _filename: &str,
+        _mime_type: Option<&str>,
     ) -> Result<()> {
         let pb = ProgressBar::new(file_content.len() as u64);
         pb.set_style(
@@ -193,38 +219,26 @@ impl DocumentClient {
         );
         pb.set_message("Uploading...");
 
-        // Build multipart form
-        let mut form = multipart::Form::new();
-
-        // Add all fields from upload_fields
-        if let Some(fields) = upload_fields.as_object() {
-            for (key, value) in fields {
-                if let Some(val) = value.as_str() {
-                    form = form.text(key.clone(), val.to_string());
-                }
-            }
-        }
-
-        // Add the file as the last field (important for S3)
-        let part = multipart::Part::bytes(file_content)
-            .file_name(filename.to_string());
-
-        let part = if let Some(mime) = mime_type {
-            part.mime_str(mime)?
-        } else {
-            part
-        };
-
-        form = form.part("file", part);
-
-        // Upload - Use a fresh client without auth headers for presigned URLs
+        // Create a new client without any default headers for presigned URLs
         let upload_client = Client::builder()
             .timeout(std::time::Duration::from_secs(300))
             .build()?;
 
-        let response = upload_client
-            .post(upload_url)
-            .multipart(form)
+        // Build the request with PUT method (S3 presigned URLs use PUT)
+        let mut request = upload_client.put(upload_url);
+
+        // Add headers from upload_fields (these are required headers for the presigned URL)
+        if let Some(fields) = upload_fields.as_object() {
+            for (key, value) in fields {
+                if let Some(val) = value.as_str() {
+                    request = request.header(key.as_str(), val);
+                }
+            }
+        }
+
+        // Send the file content as raw bytes
+        let response = request
+            .body(file_content)
             .send()
             .await
             .context("Failed to upload file")?;
