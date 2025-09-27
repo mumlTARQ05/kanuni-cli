@@ -5,6 +5,10 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+  packages: write
+
 env:
   CARGO_TERM_COLOR: always
 
@@ -33,41 +37,30 @@ jobs:
 
       - name: Create Release
         id: create_release
-        uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ github.ref }}
-          body: |
-            ## What's Changed
-            ${{ steps.changelog.outputs.changelog }}
+        run: |
+          gh release create "${{ github.ref }}" \
+            --title "Release v${{ steps.get_version.outputs.version }}" \
+            --notes "## Installation
 
-            ## Installation
+          ### Install via npm
+          \`\`\`bash
+          npm install -g @v-lawyer/kanuni
+          \`\`\`
 
-            ### macOS/Linux
-            ```bash
-            curl -fsSL https://get.kanuni.dev | sh
-            ```
+          ### Install via Cargo
+          \`\`\`bash
+          cargo install kanuni
+          \`\`\`
 
-            ### Homebrew
-            ```bash
-            brew install v-lawyer/tap/kanuni
-            ```
+          ### Download binaries
+          See Assets below for platform-specific binaries.
 
-            ### npm
-            ```bash
-            npm install -g kanuni-cli
-            ```
+          ## What's New
+          See [CHANGELOG.md](https://github.com/v-lawyer/kanuni-cli/blob/main/CHANGELOG.md) for details."
 
-            ### Cargo
-            ```bash
-            cargo install kanuni
-            ```
-
-            See full installation instructions in the [documentation](https://docs.v-lawyer.ai/docs/cli/installation).
-          draft: false
-          prerelease: false
+          echo "upload_url=$(gh release view "${{ github.ref }}" --json uploadUrl -q .uploadUrl)" >> $GITHUB_OUTPUT
 
   build-release:
     name: Build Release
@@ -144,25 +137,15 @@ jobs:
             shasum -a 256 ${{ matrix.name }}.tar.gz > ${{ matrix.name }}.tar.gz.sha256
           fi
 
-      - name: Upload Release Asset (Archive)
-        uses: actions/upload-release-asset@v1
+      - name: Upload Release Assets
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ${{ matrix.os == 'windows-latest' && format('{0}.zip', matrix.name) || format('{0}.tar.gz', matrix.name) }}
-          asset_name: ${{ matrix.os == 'windows-latest' && format('{0}.zip', matrix.name) || format('{0}.tar.gz', matrix.name) }}
-          asset_content_type: ${{ matrix.os == 'windows-latest' && 'application/zip' || 'application/gzip' }}
-
-      - name: Upload Release Asset (Checksum)
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ${{ matrix.os == 'windows-latest' && format('{0}.zip.sha256', matrix.name) || format('{0}.tar.gz.sha256', matrix.name) }}
-          asset_name: ${{ matrix.os == 'windows-latest' && format('{0}.zip.sha256', matrix.name) || format('{0}.tar.gz.sha256', matrix.name) }}
-          asset_content_type: text/plain
+        run: |
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            gh release upload "${{ github.ref }}" "${{ matrix.name }}.zip" "${{ matrix.name }}.zip.sha256"
+          else
+            gh release upload "${{ github.ref }}" "${{ matrix.name }}.tar.gz" "${{ matrix.name }}.tar.gz.sha256"
+          fi
 
   publish-crate:
     name: Publish to crates.io
