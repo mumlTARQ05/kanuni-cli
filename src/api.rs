@@ -1,5 +1,7 @@
 pub mod analysis;
 pub mod documents;
+pub mod progress;
+pub mod websocket;
 
 use crate::auth::AuthManager;
 use crate::config::Config;
@@ -51,7 +53,7 @@ impl ApiClient {
         println!("📤 Uploading document...");
         let document = self
             .document_client
-            .upload_document(file_path, &token, category, None)
+            .upload_document(file_path, &token, category, None, None)
             .await?;
 
         // Start analysis
@@ -187,6 +189,7 @@ impl ApiClient {
         file_path: &Path,
         category: Option<DocumentCategory>,
         description: Option<String>,
+        filename_override: Option<String>,
     ) -> Result<DocumentResponse> {
         let token = self
             .auth_manager
@@ -195,7 +198,7 @@ impl ApiClient {
             .context("Authentication required. Please run 'kanuni auth login' first.")?;
 
         self.document_client
-            .upload_document(file_path, &token, category, description)
+            .upload_document(file_path, &token, category, description, filename_override)
             .await
     }
 }

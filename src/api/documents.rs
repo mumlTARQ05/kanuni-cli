@@ -10,6 +10,7 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Serialize)]
 pub struct UploadDocumentRequest {
     pub filename: String,
+    pub filename_override: Option<String>,  // Optional filename override
     pub category: Option<DocumentCategory>,
     pub description: Option<String>,
     pub tags: Option<Vec<String>>,
@@ -130,6 +131,7 @@ impl DocumentClient {
         token: &str,
         category: Option<DocumentCategory>,
         description: Option<String>,
+        filename_override: Option<String>,
     ) -> Result<DocumentResponse> {
         // Read file metadata
         let metadata = fs::metadata(file_path).context("Failed to read file metadata")?;
@@ -157,6 +159,7 @@ impl DocumentClient {
         // Step 1: Request upload URL
         let upload_request = UploadDocumentRequest {
             filename: filename.clone(),
+            filename_override,  // Use the provided filename override
             category,
             description,
             tags: None,
@@ -455,7 +458,24 @@ impl DocumentClient {
         let output_file = if let Some(path) = output_path {
             path.to_path_buf()
         } else {
-            Path::new(&document.filename).to_path_buf()
+            // Add extension based on mime_type if filename doesn't have one
+            let mut filename = document.filename.clone();
+            if !filename.contains('.') {
+                let extension = match document.mime_type.as_str() {
+                    "application/pdf" => ".pdf",
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document" => ".docx",
+                    "application/msword" => ".doc",
+                    "text/plain" => ".txt",
+                    "text/rtf" | "application/rtf" => ".rtf",
+                    "image/png" => ".png",
+                    "image/jpeg" => ".jpg",
+                    _ => "",
+                };
+                if !extension.is_empty() {
+                    filename.push_str(extension);
+                }
+            }
+            Path::new(&filename).to_path_buf()
         };
 
         // Save to file

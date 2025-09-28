@@ -57,6 +57,7 @@ uuid = { version = "1.8", features = ["v4", "serde"] }
 base64 = "0.22"
 url = "2.5"
 comfy-table = "7.1"
+glob = "0.3"
 
 # Security
 rpassword = "7.3"
@@ -64,6 +65,11 @@ sha2 = "0.10"
 
 # System utils
 open = "5.0"
+
+# WebSocket support
+tokio-tungstenite = "0.23"
+futures-util = "0.3"
+backoff = { version = "0.4", features = ["tokio"] }
 
 [dev-dependencies]
 mockito = "1.4"

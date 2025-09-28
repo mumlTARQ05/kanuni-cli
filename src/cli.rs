@@ -118,6 +118,12 @@ pub enum Commands {
         #[command(subcommand)]
         action: DocumentAction,
     },
+
+    /// Batch operations for documents
+    Batch {
+        #[command(subcommand)]
+        action: commands::batch::BatchAction,
+    },
 }
 
 #[derive(Subcommand)]
@@ -186,6 +192,9 @@ pub enum DocumentAction {
         /// Document description
         #[arg(short, long)]
         description: Option<String>,
+        /// Override the filename stored in the system (optional)
+        #[arg(short, long)]
+        filename: Option<String>,
     },
     /// List all documents
     List {
@@ -205,6 +214,9 @@ pub enum DocumentAction {
     Delete {
         /// Document ID (full UUID or first 8 characters)
         id: String,
+        /// Skip confirmation prompt
+        #[arg(long)]
+        yes: bool,
     },
     /// Download a document
     Download {
@@ -259,6 +271,25 @@ impl Cli {
             Commands::Auth { action } => commands::auth::execute(action).await,
             Commands::Completions { shell } => commands::completions::execute(*shell),
             Commands::Document { action } => commands::document::execute(action).await,
+            Commands::Batch { action } => {
+                let config = crate::config::Config::load()?;
+                match action {
+                    commands::batch::BatchAction::Upload { files, auto_analyze, analysis_type, category, yes, continue_on_error } => {
+                        commands::batch::execute_batch_upload(
+                            config,
+                            files.clone(),
+                            *auto_analyze,
+                            analysis_type.clone(),
+                            category.clone(),
+                            *yes,
+                            *continue_on_error,
+                        ).await
+                    },
+                    commands::batch::BatchAction::Status { batch_id } => {
+                        commands::batch::execute_batch_status(config, batch_id.clone()).await
+                    }
+                }
+            }
         }
     }
 }

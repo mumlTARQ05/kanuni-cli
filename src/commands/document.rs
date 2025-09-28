@@ -18,12 +18,14 @@ pub async fn execute(action: &DocumentAction) -> Result<()> {
             file,
             category,
             description,
+            filename,
         } => {
             upload_document(
                 &api_client,
                 file,
                 category.as_deref(),
                 description.as_deref(),
+                filename.as_deref(),
             )
             .await
         }
@@ -31,7 +33,7 @@ pub async fn execute(action: &DocumentAction) -> Result<()> {
             list_documents(&api_client, *limit, *offset).await
         }
         DocumentAction::Info { id } => show_document_info(&api_client, id).await,
-        DocumentAction::Delete { id } => delete_document(&api_client, id).await,
+        DocumentAction::Delete { id, yes } => delete_document(&api_client, id, *yes).await,
         DocumentAction::Download { id, output } => {
             download_document(&api_client, id, output.as_deref()).await
         }
@@ -43,6 +45,7 @@ async fn upload_document(
     file_path: &str,
     category: Option<&str>,
     description: Option<&str>,
+    filename_override: Option<&str>,
 ) -> Result<()> {
     use crate::api::DocumentCategory;
     use std::path::Path;
@@ -79,7 +82,12 @@ async fn upload_document(
 
     // Upload document
     let document = api_client
-        .upload_document(path, category_enum, description.map(|s| s.to_string()))
+        .upload_document(
+            path,
+            category_enum,
+            description.map(|s| s.to_string()),
+            filename_override.map(|s| s.to_string()),
+        )
         .await?;
 
     println!(
@@ -146,7 +154,7 @@ async fn list_documents(
         ]);
 
     for doc in &response.documents {
-        // Format document ID (show first 8 chars)
+        // Format document ID (show first 8 chars for cleaner display)
         let short_id = doc.id.to_string()[..8].to_string();
 
         // Format file size
@@ -194,8 +202,8 @@ async fn list_documents(
 }
 
 async fn show_document_info(api_client: &ApiClient, id: &str) -> Result<()> {
-    // Parse UUID
-    let document_id = parse_document_id(id)?;
+    // Parse UUID (with partial UUID support)
+    let document_id = resolve_document_id(api_client, id).await?;
 
     println!("{} Fetching document details...", "📄".cyan());
 
@@ -268,8 +276,8 @@ async fn show_document_info(api_client: &ApiClient, id: &str) -> Result<()> {
     Ok(())
 }
 
-async fn delete_document(api_client: &ApiClient, id: &str) -> Result<()> {
-    let document_id = parse_document_id(id)?;
+async fn delete_document(api_client: &ApiClient, id: &str, skip_confirmation: bool) -> Result<()> {
+    let document_id = resolve_document_id(api_client, id).await?;
 
     // Get document info first
     let document = api_client.get_document(document_id).await?;
@@ -280,17 +288,19 @@ async fn delete_document(api_client: &ApiClient, id: &str) -> Result<()> {
         format!("Deleting '{}'...", document.filename).bold()
     );
 
-    // Confirm deletion
-    print!("Are you sure you want to delete this document? (y/N): ");
-    use std::io::{self, Write};
-    io::stdout().flush()?;
+    // Confirm deletion unless skipped
+    if !skip_confirmation {
+        print!("Are you sure you want to delete this document? (y/N): ");
+        use std::io::{self, Write};
+        io::stdout().flush()?;
 
-    let mut input = String::new();
-    io::stdin().read_line(&mut input)?;
+        let mut input = String::new();
+        io::stdin().read_line(&mut input)?;
 
-    if !input.trim().eq_ignore_ascii_case("y") {
-        println!("{}", "Deletion cancelled.".yellow());
-        return Ok(());
+        if !input.trim().eq_ignore_ascii_case("y") {
+            println!("{}", "Deletion cancelled.".yellow());
+            return Ok(());
+        }
     }
 
     api_client.delete_document(document_id).await?;
@@ -305,7 +315,7 @@ async fn delete_document(api_client: &ApiClient, id: &str) -> Result<()> {
 }
 
 async fn download_document(api_client: &ApiClient, id: &str, output: Option<&str>) -> Result<()> {
-    let document_id = parse_document_id(id)?;
+    let document_id = resolve_document_id(api_client, id).await?;
 
     let output_path = output.map(Path::new);
 
@@ -324,15 +334,42 @@ async fn download_document(api_client: &ApiClient, id: &str, output: Option<&str
 
 // Helper functions
 
-fn parse_document_id(id: &str) -> Result<Uuid> {
-    // Try to parse as full UUID
+/// Resolve a document ID from either a full UUID or partial UUID
+async fn resolve_document_id(api_client: &ApiClient, id: &str) -> Result<Uuid> {
+    // First, try to parse as a full UUID
     if let Ok(uuid) = Uuid::parse_str(id) {
         return Ok(uuid);
     }
 
-    // If it's a short ID (8 chars), we can't expand it without a lookup
-    // For now, require full UUIDs
-    bail!("Invalid document ID. Please provide the full UUID.")
+    // If it's a partial ID, fetch all documents and find matches
+    if id.len() < 8 {
+        bail!("Document ID must be at least 8 characters");
+    }
+
+    // Fetch documents to resolve the partial ID
+    // In production, we might want to cache this or have a dedicated endpoint
+    let response = api_client.list_documents(Some(100), Some(0)).await?;
+
+    // Find documents that match the partial ID
+    let matches: Vec<_> = response
+        .documents
+        .iter()
+        .filter(|doc| doc.id.to_string().starts_with(id))
+        .collect();
+
+    match matches.len() {
+        0 => bail!("No document found with ID starting with '{}'", id),
+        1 => Ok(matches[0].id),
+        _ => {
+            // Multiple matches - show them to the user
+            let mut msg = format!("Multiple documents match '{}'. Matches found:\n", id);
+            for doc in matches.iter().take(5) {
+                msg.push_str(&format!("  {} - {}\n", doc.id, doc.filename));
+            }
+            msg.push_str("Please provide more characters to uniquely identify the document.");
+            bail!(msg)
+        }
+    }
 }
 
 fn format_file_size(bytes: i64) -> String {
