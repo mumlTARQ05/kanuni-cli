@@ -2,6 +2,7 @@ pub mod api_key;
 pub mod client;
 pub mod device_flow;
 pub mod models;
+pub mod sessions;
 pub mod token_store;
 
 use anyhow::{Context, Result};
@@ -13,7 +14,8 @@ use self::{
     api_key::ApiKeyManager,
     client::AuthClient,
     device_flow::DeviceAuth,
-    models::{AuthTokens, RefreshRequest, UserInfo},
+    models::{RefreshRequest, CliSessionResponse},
+    sessions::SessionsClient,
     token_store::{AuthType, StoredCredentials, TokenStore},
 };
 use crate::config::Config;
@@ -218,5 +220,34 @@ impl AuthManager {
         } else {
             Ok("Not authenticated".to_string())
         }
+    }
+
+    /// List all CLI sessions
+    pub async fn list_sessions(&self) -> Result<Vec<CliSessionResponse>> {
+        let access_token = self.get_access_token().await?;
+        let config = self.config.read().await;
+        let client = SessionsClient::new(config.api_endpoint.clone());
+        client.list_sessions(&access_token).await
+    }
+
+    /// Revoke a specific CLI session
+    pub async fn revoke_session(&self, session_id: &str) -> Result<()> {
+        let access_token = self.get_access_token().await?;
+        let config = self.config.read().await;
+        let client = SessionsClient::new(config.api_endpoint.clone());
+        client.revoke_session(&access_token, session_id).await
+    }
+
+    /// Revoke all CLI sessions
+    pub async fn revoke_all_sessions(&self) -> Result<()> {
+        let access_token = self.get_access_token().await?;
+        let config = self.config.read().await;
+        let client = SessionsClient::new(config.api_endpoint.clone());
+        client.revoke_all_sessions(&access_token).await?;
+
+        // After revoking all sessions, we need to logout locally as well
+        self.logout().await?;
+
+        Ok(())
     }
 }

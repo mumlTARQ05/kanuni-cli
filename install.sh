@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 
+# Kanuni CLI Installation Script
+# This script automatically detects the platform and installs the appropriate binary
+
 set -e
 
-# Kanuni CLI Installation Script
-# This script installs the Kanuni CLI on macOS, Linux, and WSL
-
 REPO="v-lawyer/kanuni-cli"
-INSTALL_DIR="${KANUNI_INSTALL_DIR:-/usr/local/bin}"
+INSTALL_DIR="${INSTALL_DIR:-$HOME/.local/bin}"
 BINARY_NAME="kanuni"
 
 # Colors for output
@@ -16,250 +16,208 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Logging functions
-info() {
-    echo -e "${BLUE}ℹ${NC} $1"
+# Helper functions
+error() {
+    echo -e "${RED}Error: $1${NC}" >&2
+    exit 1
 }
 
 success() {
-    echo -e "${GREEN}✓${NC} $1"
+    echo -e "${GREEN}✓ $1${NC}"
 }
 
-error() {
-    echo -e "${RED}✗${NC} $1" >&2
+info() {
+    echo -e "${BLUE}→ $1${NC}"
 }
 
 warning() {
-    echo -e "${YELLOW}⚠${NC} $1"
+    echo -e "${YELLOW}⚠ $1${NC}"
 }
 
 # Detect OS and architecture
 detect_platform() {
-    local os
-    local arch
+    local os=""
+    local arch=""
 
     # Detect OS
     case "$(uname -s)" in
-        Darwin*)    os="darwin" ;;
-        Linux*)     os="linux" ;;
-        MINGW*|CYGWIN*|MSYS*)
-            error "Windows is not directly supported. Please use WSL or download from GitHub releases."
-            exit 1
-            ;;
-        *)
-            error "Unsupported operating system: $(uname -s)"
-            exit 1
-            ;;
+        Linux*)     os="linux";;
+        Darwin*)    os="darwin";;
+        CYGWIN*|MINGW*|MSYS*)    os="windows";;
+        *)          error "Unsupported operating system: $(uname -s)";;
     esac
 
     # Detect architecture
     case "$(uname -m)" in
-        x86_64|amd64)   arch="x64" ;;
-        arm64|aarch64)  arch="arm64" ;;
-        *)
-            error "Unsupported architecture: $(uname -m)"
-            exit 1
-            ;;
+        x86_64|amd64)   arch="x64";;
+        aarch64|arm64)  arch="arm64";;
+        *)              error "Unsupported architecture: $(uname -m)";;
     esac
+
+    # Special case for macOS Apple Silicon
+    if [[ "$os" == "darwin" && "$arch" == "arm64" ]]; then
+        arch="arm64"
+    fi
 
     echo "${os}-${arch}"
 }
 
-# Get the latest release version from GitHub
+# Get the latest release version
 get_latest_version() {
-    local version
-    version=$(curl -s "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+    local latest_url="https://api.github.com/repos/$REPO/releases/latest"
 
-    if [ -z "$version" ]; then
-        error "Failed to fetch the latest version"
-        exit 1
+    if command -v curl > /dev/null; then
+        curl -s "$latest_url" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/'
+    elif command -v wget > /dev/null; then
+        wget -qO- "$latest_url" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/'
+    else
+        error "Neither curl nor wget found. Please install one of them."
     fi
-
-    echo "$version"
 }
 
-# Download and verify the binary
+# Download and extract binary
 download_binary() {
-    local version=$1
-    local platform=$2
-    local binary_name="kanuni-${platform}"
-    local download_url="https://github.com/${REPO}/releases/download/${version}/${binary_name}.tar.gz"
-    local checksum_url="${download_url}.sha256"
-    local temp_dir
+    local version="$1"
+    local platform="$2"
+    local temp_dir="$(mktemp -d)"
 
-    temp_dir=$(mktemp -d)
-    cd "$temp_dir"
+    # Determine file extension
+    local ext="tar.gz"
+    if [[ "$platform" == *"windows"* ]]; then
+        ext="zip"
+    fi
+
+    local filename="${BINARY_NAME}-${platform}.${ext}"
+    local download_url="https://github.com/$REPO/releases/download/${version}/${filename}"
 
     info "Downloading Kanuni CLI ${version} for ${platform}..."
 
-    # Download the binary archive
-    if ! curl -L --progress-bar -o "${binary_name}.tar.gz" "$download_url"; then
-        error "Failed to download binary"
-        exit 1
+    # Download the file
+    if command -v curl > /dev/null; then
+        curl -L -o "$temp_dir/$filename" "$download_url" || error "Failed to download binary"
+    elif command -v wget > /dev/null; then
+        wget -O "$temp_dir/$filename" "$download_url" || error "Failed to download binary"
     fi
-
-    # Download and verify checksum
-    info "Verifying checksum..."
-    curl -sL -o "${binary_name}.tar.gz.sha256" "$checksum_url"
-
-    # Verify checksum
-    if command -v sha256sum > /dev/null 2>&1; then
-        if ! sha256sum -c "${binary_name}.tar.gz.sha256" > /dev/null 2>&1; then
-            error "Checksum verification failed"
-            exit 1
-        fi
-    elif command -v shasum > /dev/null 2>&1; then
-        expected=$(cat "${binary_name}.tar.gz.sha256" | awk '{print $1}')
-        actual=$(shasum -a 256 "${binary_name}.tar.gz" | awk '{print $1}')
-        if [ "$expected" != "$actual" ]; then
-            error "Checksum verification failed"
-            exit 1
-        fi
-    else
-        warning "Cannot verify checksum (no sha256sum or shasum available)"
-    fi
-
-    success "Checksum verified"
 
     # Extract the binary
     info "Extracting binary..."
-    tar -xzf "${binary_name}.tar.gz"
+    cd "$temp_dir"
 
-    # Install the binary
-    info "Installing to ${INSTALL_DIR}..."
-
-    # Check if we need sudo
-    if [ -w "$INSTALL_DIR" ]; then
-        mv "$binary_name" "${INSTALL_DIR}/${BINARY_NAME}"
+    if [[ "$ext" == "zip" ]]; then
+        if command -v unzip > /dev/null; then
+            unzip -q "$filename" || error "Failed to extract zip file"
+        else
+            error "unzip command not found. Please install unzip."
+        fi
     else
-        warning "Sudo required to install to ${INSTALL_DIR}"
-        sudo mv "$binary_name" "${INSTALL_DIR}/${BINARY_NAME}"
+        tar -xzf "$filename" || error "Failed to extract tar file"
     fi
 
-    # Make executable
-    if [ -w "${INSTALL_DIR}/${BINARY_NAME}" ]; then
-        chmod +x "${INSTALL_DIR}/${BINARY_NAME}"
+    # Find the binary (it might be in a subdirectory)
+    local binary_path=""
+    if [[ -f "$BINARY_NAME" ]]; then
+        binary_path="$BINARY_NAME"
+    elif [[ -f "$BINARY_NAME.exe" ]]; then
+        binary_path="$BINARY_NAME.exe"
     else
-        sudo chmod +x "${INSTALL_DIR}/${BINARY_NAME}"
+        # Search for the binary in subdirectories
+        binary_path=$(find . -name "$BINARY_NAME" -o -name "$BINARY_NAME.exe" | head -n 1)
     fi
 
-    # Clean up
-    cd - > /dev/null
-    rm -rf "$temp_dir"
+    if [[ -z "$binary_path" ]]; then
+        error "Binary not found in archive"
+    fi
+
+    echo "$temp_dir/$binary_path"
 }
 
-# Setup shell completions
-setup_completions() {
-    info "Setting up shell completions..."
+# Install the binary
+install_binary() {
+    local binary_path="$1"
 
-    local shell_name
+    # Create install directory if it doesn't exist
+    mkdir -p "$INSTALL_DIR"
 
-    # Detect shell
-    if [ -n "$BASH_VERSION" ]; then
-        shell_name="bash"
-    elif [ -n "$ZSH_VERSION" ]; then
-        shell_name="zsh"
-    elif [ -n "$FISH_VERSION" ]; then
-        shell_name="fish"
-    else
-        warning "Unknown shell. Skipping completion setup."
-        return
-    fi
+    # Copy binary to install directory
+    info "Installing to $INSTALL_DIR/$BINARY_NAME..."
+    cp "$binary_path" "$INSTALL_DIR/$BINARY_NAME"
 
-    # Generate completions
-    if command -v kanuni > /dev/null 2>&1; then
-        case "$shell_name" in
-            bash)
-                if [ -d "/etc/bash_completion.d" ]; then
-                    kanuni completions bash | sudo tee /etc/bash_completion.d/kanuni > /dev/null
-                    success "Bash completions installed"
-                fi
-                ;;
-            zsh)
-                if [ -d "/usr/local/share/zsh/site-functions" ]; then
-                    kanuni completions zsh | sudo tee /usr/local/share/zsh/site-functions/_kanuni > /dev/null
-                    success "Zsh completions installed"
-                fi
-                ;;
-            fish)
-                if [ -d "$HOME/.config/fish/completions" ]; then
-                    kanuni completions fish > "$HOME/.config/fish/completions/kanuni.fish"
-                    success "Fish completions installed"
-                fi
-                ;;
-        esac
+    # Make it executable
+    chmod +x "$INSTALL_DIR/$BINARY_NAME"
+
+    success "Kanuni CLI installed successfully!"
+}
+
+# Check if install directory is in PATH
+check_path() {
+    if [[ ":$PATH:" != *":$INSTALL_DIR:"* ]]; then
+        warning "Installation directory $INSTALL_DIR is not in your PATH"
+        echo ""
+        echo "Add the following line to your shell configuration file (.bashrc, .zshrc, etc.):"
+        echo ""
+        echo "  export PATH=\"$INSTALL_DIR:\$PATH\""
+        echo ""
+        echo "Then reload your shell configuration:"
+        echo "  source ~/.bashrc  # or ~/.zshrc"
+        echo ""
     fi
 }
 
 # Main installation flow
 main() {
-    echo
-    echo "╔══════════════════════════════════════════╗"
-    echo "║     Kanuni CLI Installation Script       ║"
-    echo "║         AI-Powered Legal Intelligence    ║"
-    echo "╚══════════════════════════════════════════╝"
-    echo
+    echo ""
+    echo "╔═══════════════════════════════════════╗"
+    echo "║     Kanuni CLI Installation Script     ║"
+    echo "╚═══════════════════════════════════════╝"
+    echo ""
 
-    # Check for required tools
-    for tool in curl tar; do
-        if ! command -v $tool > /dev/null 2>&1; then
-            error "$tool is required but not installed"
-            exit 1
-        fi
-    done
-
-    # Detect platform
-    info "Detecting platform..."
-    PLATFORM=$(detect_platform)
-    success "Platform: $PLATFORM"
-
-    # Get latest version
-    info "Fetching latest version..."
-    VERSION=$(get_latest_version)
-    success "Latest version: $VERSION"
-
-    # Check if already installed
-    if command -v kanuni > /dev/null 2>&1; then
-        CURRENT_VERSION=$(kanuni --version 2>/dev/null | cut -d' ' -f2 || echo "unknown")
-        warning "Kanuni is already installed (version: $CURRENT_VERSION)"
-        read -p "Do you want to continue with the installation? (y/N) " -n 1 -r
+    # Check for existing installation
+    if command -v "$BINARY_NAME" > /dev/null 2>&1; then
+        local current_version=$("$BINARY_NAME" --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown")
+        warning "Kanuni CLI is already installed (version: $current_version)"
+        read -p "Do you want to reinstall/update? (y/N): " -n 1 -r
         echo
         if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            info "Installation cancelled"
             exit 0
         fi
     fi
 
-    # Download and install
-    download_binary "$VERSION" "$PLATFORM"
+    # Detect platform
+    info "Detecting platform..."
+    local platform=$(detect_platform)
+    success "Detected platform: $platform"
+
+    # Get latest version
+    info "Getting latest version..."
+    local version=$(get_latest_version)
+
+    if [[ -z "$version" ]]; then
+        error "Failed to get latest version"
+    fi
+
+    success "Latest version: $version"
+
+    # Download binary
+    local binary_path=$(download_binary "$version" "$platform")
+
+    # Install binary
+    install_binary "$binary_path"
+
+    # Cleanup
+    rm -rf "$(dirname "$binary_path")"
+
+    # Check PATH
+    check_path
 
     # Verify installation
-    if command -v kanuni > /dev/null 2>&1; then
-        success "Kanuni CLI installed successfully!"
-
-        # Setup completions
-        setup_completions
-
-        # Show version
-        echo
-        kanuni --version
-        echo
-
-        # Instructions
-        echo "🎉 Installation complete!"
-        echo
-        echo "To get started, run:"
-        echo "  kanuni --help"
-        echo
-        echo "To authenticate, run:"
-        echo "  kanuni login"
-        echo
-        echo "Documentation: https://docs.v-lawyer.ai"
-        echo
+    if "$INSTALL_DIR/$BINARY_NAME" --version > /dev/null 2>&1; then
+        echo ""
+        success "Installation complete!"
+        echo ""
+        echo "Run 'kanuni --help' to get started"
+        echo ""
     else
-        error "Installation failed. Kanuni command not found."
-        error "Please ensure ${INSTALL_DIR} is in your PATH"
-        exit 1
+        error "Installation verification failed"
     fi
 }
 

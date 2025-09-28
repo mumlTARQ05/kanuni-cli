@@ -153,6 +153,25 @@ pub enum AuthAction {
     /// List all API keys
     #[command(name = "list-keys")]
     ListKeys,
+    /// Manage CLI sessions
+    Sessions {
+        #[command(subcommand)]
+        action: SessionAction,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum SessionAction {
+    /// List all active CLI sessions
+    List,
+    /// Revoke a specific CLI session
+    Revoke {
+        /// Session ID to revoke
+        id: String,
+    },
+    /// Revoke all CLI sessions (will log you out)
+    #[command(name = "revoke-all")]
+    RevokeAll,
 }
 
 #[derive(Subcommand)]

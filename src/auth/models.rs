@@ -55,3 +55,24 @@ pub struct ErrorResponse {
     pub error: String,
     pub message: String,
 }
+
+// CLI Session Management Models
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct CliSessionResponse {
+    pub id: String,  // Using String for UUID compatibility
+    pub device_name: Option<String>,
+    pub platform: Option<String>,
+    pub hostname: Option<String>,
+    pub ip_address: Option<String>,
+    pub last_used_at: DateTime<Utc>,
+    pub scopes: Vec<String>,
+    pub is_current: bool,
+    pub is_active: bool,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct RevokeSessionRequest {
+    pub reason: Option<String>,
+}

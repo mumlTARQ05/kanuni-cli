@@ -59,7 +59,7 @@ impl AuthClient {
     }
 
     pub async fn refresh_token(&self, request: RefreshRequest) -> Result<RefreshResponse> {
-        let url = format!("{}/auth/refresh", self.base_url);
+        let url = format!("{}/auth/cli/refresh", self.base_url);
 
         let response = self
             .client

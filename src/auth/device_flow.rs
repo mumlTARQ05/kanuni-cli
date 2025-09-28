@@ -11,8 +11,8 @@ use reqwest::Client;
 
 #[derive(Debug, Serialize)]
 pub struct DeviceFlowRequest {
-    pub client_id: String,
-    pub scope: String,
+    pub client_id: Option<String>,
+    pub scopes: Option<Vec<String>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -37,7 +37,7 @@ pub struct DeviceTokenResponse {
     pub refresh_token: String,
     pub token_type: String,
     pub expires_in: i64,
-    pub scope: String,
+    pub scope: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -120,11 +120,18 @@ impl DeviceAuth {
 
     async fn initiate_device_flow(&self) -> Result<DeviceFlowResponse> {
         let request = DeviceFlowRequest {
-            client_id: "kanuni-cli".to_string(),
-            scope: "full_access".to_string(),
+            client_id: Some("kanuni-cli".to_string()),
+            scopes: Some(vec![
+                "read_documents".to_string(),
+                "write_documents".to_string(),
+                "read_cases".to_string(),
+                "write_cases".to_string(),
+                "read_chat".to_string(),
+                "write_chat".to_string(),
+            ]),
         };
 
-        let url = format!("{}/api/v1/auth/device/code", self.base_url);
+        let url = format!("{}/auth/device/code", self.base_url);
         let response = self
             .client
             .post(&url)
@@ -154,7 +161,7 @@ impl DeviceAuth {
                 client_id: "kanuni-cli".to_string(),
             };
 
-            let url = format!("{}/api/v1/auth/device/token", self.base_url);
+            let url = format!("{}/auth/device/token", self.base_url);
             let response = self.client.post(&url).json(&request).send().await?;
 
             if response.status().is_success() {
