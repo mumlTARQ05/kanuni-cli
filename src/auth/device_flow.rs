@@ -73,22 +73,30 @@ impl DeviceAuth {
 
         // Display user code and instructions
         println!();
-        println!(
-            "{}  Please visit: {}",
-            "🌐".blue(),
-            device_flow.verification_uri.bright_cyan()
-        );
-        println!();
-        println!("     And enter this code:");
-        println!();
-        println!("     {}", device_flow.user_code.bright_green().bold());
-        println!();
-        println!("{}  Waiting for authorization...", "⏳".yellow());
 
         // Try to open browser automatically
-        if let Err(_) = open::that(&device_flow.verification_uri_complete) {
-            // Silently fail if we can't open the browser
+        if open::that(&device_flow.verification_uri_complete).is_ok() {
+            println!("{}  Opening browser to authorize device...", "🌐".blue());
+            println!();
+            println!("     If the browser doesn't open automatically, visit:");
+            println!("     {}", device_flow.verification_uri_complete.bright_cyan());
+        } else {
+            println!(
+                "{}  Please visit: {}",
+                "🌐".blue(),
+                device_flow.verification_uri.bright_cyan()
+            );
+            println!();
+            println!("     And enter this code:");
+            println!();
+            println!("     {}", device_flow.user_code.bright_green().bold());
+            println!();
+            println!("     Or visit this URL directly:");
+            println!("     {}", device_flow.verification_uri_complete.bright_cyan());
         }
+
+        println!();
+        println!("{}  Waiting for authorization...", "⏳".yellow());
 
         // Step 2: Poll for token
         let token_response = self
@@ -151,10 +159,12 @@ impl DeviceAuth {
         interval: i64,
     ) -> Result<DeviceTokenResponse> {
         let mut poll_interval = time::Duration::from_secs(interval as u64);
-        let max_attempts = 120; // Max 10 minutes with 5 second intervals
+        let max_attempts = 180; // Max 15 minutes (15 * 60 / 5 = 180)
+        let mut attempt = 0;
 
         for _ in 0..max_attempts {
             sleep(poll_interval).await;
+            attempt += 1;
 
             let request = DeviceTokenRequest {
                 device_code: device_code.clone(),
@@ -174,21 +184,31 @@ impl DeviceAuth {
             if let Ok(error) = response.json::<DeviceTokenError>().await {
                 match error.error.as_str() {
                     "authorization_pending" => {
-                        // Continue polling
+                        // Show progress indicator every 3 attempts (15 seconds)
+                        if attempt % 3 == 0 {
+                            print!(".");
+                            use std::io::{self, Write};
+                            io::stdout().flush().ok();
+                        }
                         continue;
                     }
                     "slow_down" => {
-                        // Increase polling interval
-                        poll_interval = time::Duration::from_secs((interval + 5) as u64);
+                        // Increase polling interval by 5 seconds as per OAuth spec
+                        poll_interval = time::Duration::from_secs(poll_interval.as_secs() + 5);
+                        println!();
+                        println!("{}  Slowing down polling interval...", "⚠️ ".yellow());
                         continue;
                     }
                     "access_denied" => {
-                        return Err(anyhow::anyhow!("Authorization was denied"));
+                        println!();
+                        return Err(anyhow::anyhow!("❌ Authorization was denied by the user"));
                     }
                     "expired_token" => {
-                        return Err(anyhow::anyhow!("Device code has expired"));
+                        println!();
+                        return Err(anyhow::anyhow!("⏱️  Device code has expired. Please try again."));
                     }
                     _ => {
+                        println!();
                         return Err(anyhow::anyhow!(
                             "Authentication failed: {}",
                             error.error_description
@@ -198,6 +218,7 @@ impl DeviceAuth {
             }
         }
 
-        Err(anyhow::anyhow!("Authentication timeout"))
+        println!();
+        Err(anyhow::anyhow!("⏱️  Authentication timeout. Please try again."))
     }
 }
